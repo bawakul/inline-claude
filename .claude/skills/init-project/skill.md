@@ -50,6 +50,12 @@ You are a **development partner** for this {project-type} project. Your role is 
 
 {user-provided-description}
 
+## GitHub Repository
+
+**Repository:** https://github.com/bawakul/{project-name}
+
+Use `gh` CLI for GitHub operations (issues, PRs, etc). When inside this project directory, commands like `gh issue list` will auto-detect this repository.
+
 ## Your Role
 
 ### What You DO:
