@@ -2,17 +2,21 @@
 
 Initialize a new project with proper structure, Claude configuration, and GitHub integration.
 
-## Process
+## Process Overview
+
+This skill uses a **hybrid approach**:
+- **LLM writes** context-aware files (CLAUDE.md, README.md, type-specific file)
+- **Script handles** mechanical tasks (directories, git, GitHub, static files)
 
 ### 1. Gather Project Information
 
 Use the AskUserQuestion tool to collect:
 
 **Project Name:**
-- Question: "What is the project name?"
+- Question: "What should the project be called?"
 - Header: "Project Name"
-- Options: "Use 'Other' to type the name"
-- Store as: lowercase-with-hyphens format for folder name
+- Options: Suggest 2-3 names based on conversation, or "Other"
+- Store as: lowercase-with-hyphens format
 
 **Project Type:**
 - Question: "What type of project is this?"
@@ -23,6 +27,8 @@ Use the AskUserQuestion tool to collect:
   - "Experiment" - Prototype/learning/quick experiment
   - "Design" - Creative coding/design system/visual project
 
+If there's been prior conversation about the project, infer the description from context. Otherwise ask:
+
 **Project Description:**
 - Question: "What is the project vision/description?"
 - Header: "Description"
@@ -31,15 +37,12 @@ Use the AskUserQuestion tool to collect:
 ### 2. Create Project Directory
 
 ```bash
-# Create project in the portfolio directory (current working directory)
-mkdir -p "{project-name}/Sessions"
-mkdir -p "{project-name}/.claude/hooks"
-cd "{project-name}"
+mkdir -p "{project-name}/.claude"
 ```
 
-### 3. Create .claude/Claude.md
+### 3. Write .claude/CLAUDE.md (LLM-Generated)
 
-Create `.claude/` directory and `Claude.md` with this template:
+Write a CLAUDE.md file that incorporates conversation context. Use this template as a base, but **add project-specific sections** based on what was discussed:
 
 ```markdown
 # Development Partner - {Project Name}
@@ -48,7 +51,7 @@ You are a **development partner** for this {project-type} project. Your role is 
 
 ## Project Vision
 
-{user-provided-description}
+{description - expand based on conversation context}
 
 ## GitHub Repository
 
@@ -77,17 +80,21 @@ Use `gh` CLI for GitHub operations (issues, PRs, etc). When inside this project 
 
 **IMPORTANT: DO NOT edit `{project-name}.md` directly.**
 
-This file contains your project notes and context. The portfolio manager may read this file to track project status, but project Claude instances should:
+This file contains project notes and context. The portfolio manager reads this file to track project status, but project Claude instances should:
 - ✅ READ the file to understand context
 - ❌ NEVER write to or modify this file
 - ✅ Suggest content for the user to add
-- ❌ Never commit changes to this file
-
-The user maintains this file manually to track their thoughts, progress, and project context.
 
 ## Project Type: {Project Type}
 
-{type-specific-guidance}
+{type-specific-guidance - see below}
+
+{ADD CUSTOM SECTIONS HERE based on conversation:
+- Technical directions discussed
+- Key constraints mentioned
+- Specific approaches to try
+- Integration points
+- etc.}
 
 ## Communication Style
 - Direct and practical
@@ -97,381 +104,87 @@ The user maintains this file manually to track their thoughts, progress, and pro
 
 ## Session Tracking
 
-After each session, write session notes in `Sessions/YYYY-MM-DD-description.md`. **Ask for permission** before writing session notes to avoid overdoing it. Session notes help track progress and maintain context across sessions.
-
-## Date Format Guidelines
-
-When working with dates in this project:
-
-- **Session filenames**: Use `YYYY-MM-DD-description.md` format (machine-sortable)
-- **Frontmatter dates**: Use ISO format `YYYY-MM-DD` (for scripts and queries)
-- **Display dates**: Use wiki links `[[DD MMM YYYY]]` (e.g., `[[03 Nov 2025]]`) for human-readable, Obsidian-linked dates
-- **Session frontmatter**: Include these fields:
-  ```yaml
-  ---
-  date: YYYY-MM-DD
-  project: project-name
-  type: session
-  claude-generated: true
-  tags: [session, planning/implementation/decision]
-  ---
-  ```
-
-This ensures consistency across the portfolio and enables Obsidian cross-referencing.
-```
-
-**Type-Specific Guidance:**
-
-**For Product:**
-```
-This is a product for users. Follow spec-driven development:
-1. Write/update SPEC.md before implementing features
-2. Ensure features match the spec
-3. Think about user experience and edge cases
-4. Prioritize shipping and iterating
-```
-
-**For Personal Tool:**
-```
-This is a tool for personal use. Focus on:
-1. Pragmatic solutions over perfect code
-2. Document usage in USAGE.md
-3. Make it work first, optimize later
-4. Keep it maintainable for future you
-```
-
-**For Experiment:**
-```
-This is an experimental/learning project. Focus on:
-1. Document learnings and findings in LEARNING.md
-2. Iterate quickly, break things
-3. Capture insights and "aha moments"
-4. Don't over-engineer
-```
-
-**For Design:**
-```
-This is a design/creative project. Focus on:
-1. Maintain visual references in INSPIRATION.md
-2. Balance creativity with technical constraints
-3. Document design decisions
-4. Iterate on aesthetics
-```
-
-### 4. Create README.md
-
-```markdown
-# {Project Name}
-
-{user-provided-description}
-
-## Project Type
-{Project Type}
-
-## Status
-🚧 In Development
-
-## Getting Started
-
-{type-specific-getting-started}
-
-## Project Structure
-
-```
-{project-name}/
-├── .claude/         # Claude configuration
-├── Sessions/        # Session notes and development log
-├── README.md        # This file
-├── {project-name}.md  # Project notes and portfolio tracking
-{type-specific-files}
-```
-
-## Development
-
-(Add development instructions as you build)
-
-## License
-
-(Add license if needed)
-```
-
-**Type-Specific Getting Started:**
-
-**Product:**
-```
-1. Read SPEC.md for project requirements
-2. Follow spec-driven development workflow
-3. Update spec as requirements evolve
-```
-
-**Personal Tool:**
-```
-1. See USAGE.md for how to use this tool
-2. Modify and adapt as needed
-```
-
-**Experiment:**
-```
-1. Check LEARNING.md for goals and findings
-2. Experiment freely
-```
-
-**Design:**
-```
-1. See INSPIRATION.md for visual references
-2. Iterate on design
-```
-
-### 5. Create .gitignore
-
-```
-# Dependencies
-node_modules/
-venv/
-env/
-__pycache__/
-
-# Environment
-.env
-.env.local
-
-# OS Files
-.DS_Store
-Thumbs.db
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Build outputs
-dist/
-build/
-*.pyc
-*.pyo
-
-# Logs
-*.log
-npm-debug.log*
-```
-
-### 6. Create Type-Specific File
-
-**For Product** - Create `SPEC.md`:
-```markdown
-# {Project Name} - Specification
-
-## Overview
-{user-provided-description}
-
-## User Stories
-
-(Add user stories here)
-
-## Features
-
-### MVP
-- [ ] (Define minimum viable features)
-
-### Future
-- (Nice-to-have features)
-
-## Technical Approach
-
-(Add technical decisions here)
-
-## Open Questions
-
-(Track unresolved questions)
-```
-
-**For Personal Tool** - Create `USAGE.md`:
-```markdown
-# Usage Guide - {Project Name}
-
-## What It Does
-{user-provided-description}
-
-## How to Use
-
-(Add usage instructions)
-
-## Configuration
-
-(Add configuration options)
-
-## Examples
-
-(Add example usage)
-```
-
-**For Experiment** - Create `LEARNING.md`:
-```markdown
-# Learning Journal - {Project Name}
-
-## Goal
-{user-provided-description}
-
-## Questions to Explore
-- (What do you want to learn?)
-
-## Findings
-
-### [Date]
-(Document learnings as you go)
-
-## Resources
-- (Links and references)
-```
-
-**For Design** - Create `INSPIRATION.md`:
-```markdown
-# Design Inspiration - {Project Name}
-
-## Vision
-{user-provided-description}
-
-## Visual References
-- (Add links to inspiring designs)
-
-## Color Palette
-(Define colors)
-
-## Typography
-(Define fonts)
-
-## Design Decisions
-
-### [Date]
-(Document design choices)
-```
-
-### 7. Create [project-name].md
-
-Create `{project-name}.md` with frontmatter for portfolio tracking. **Content sections should be left empty as placeholders for the user to fill in.**
-
-```markdown
+After each session, write session notes in `Sessions/YYYY-MM-DD-description.md`. **Ask for permission** before writing session notes. Session frontmatter:
+```yaml
 ---
-status: active
-project_type: {project-type}
-last_worked: {YYYY-MM-DD}
-next_action: "{type-specific-next-action}"
-repo: "https://github.com/{username}/{project-name}"
-tags: [bawa-notes]
+date: YYYY-MM-DD
+project: {project-name}
+type: session
+claude-generated: true
+tags: [session, planning/implementation/decision]
 ---
-
-# {Project Name} - Notes
-
-## Overview
-[Brief description of what this project is and why it exists]
-
-## Current Status
-[What's working, what's blocked, what's next]
-
-## Running Notes
-[Your running notes, session summaries, and project context go here]
+```
 ```
 
-**Type-Specific Next Actions:**
-- **Product**: "Refine SPEC.md with user requirements"
-- **Personal Tool**: "Define usage patterns in USAGE.md"
-- **Experiment**: "Set learning goals in LEARNING.md"
-- **Design**: "Gather visual inspiration in INSPIRATION.md"
+**Type-Specific Guidance to include:**
 
-**Important:** Only fill in the frontmatter. Leave the content sections (Overview, Current Status, Running Notes) as placeholder text in brackets for the user to write themselves.
+- **Product**: Spec-driven development, write/update SPEC.md before implementing, think about UX and edge cases
+- **Personal Tool**: Pragmatic solutions, document usage in USAGE.md, make it work first
+- **Experiment**: Document learnings in LEARNING.md, iterate quickly, capture insights
+- **Design**: Maintain visual references in INSPIRATION.md, document design decisions
 
-### 8. Setup Session Auto-Load Hook
+### 4. Write README.md (LLM-Generated)
 
-Copy the hook script from the portfolio templates and configure it:
+Write a README that captures the project vision. Include:
+- Project name and description (from conversation context)
+- The problem being solved
+- The approach/idea
+- Project type and status
+- Basic structure overview
+
+Keep it concise but informative.
+
+### 5. Write Type-Specific File (LLM-Generated)
+
+Based on project type, create the appropriate file **with content informed by the conversation**:
+
+| Type | File | Purpose |
+|------|------|---------|
+| Product | SPEC.md | Requirements, user stories, features, technical approach |
+| Personal Tool | USAGE.md | What it does, how to use, configuration, examples |
+| Experiment | LEARNING.md | Goals, questions to explore, technical options to try |
+| Design | INSPIRATION.md | Vision, visual references, color/typography, decisions |
+
+**Important:** Don't just use placeholder text. If there was discussion about technical approaches, features, or goals, incorporate that into these files.
+
+### 6. Run the Setup Script
+
+After writing the LLM-generated files, run the script to handle everything else:
 
 ```bash
-# Copy hook script from portfolio templates
-cp "../_Templates/load-last-session.py" ".claude/hooks/load-last-session.py"
-
-# Make script executable
-chmod +x ".claude/hooks/load-last-session.py"
+bash "_Templates/new-project.sh" "{project-name}" "{project-type}" "{description}"
 ```
 
-Create `.claude/settings.json` with hook configuration:
+The script handles:
+- Directory structure (Sessions/, .claude/hooks/)
+- .gitignore (static)
+- {project-name}.md (portfolio tracking frontmatter)
+- Hook setup (copy script, settings.json)
+- Git init, add, commit
+- GitHub repo create and push
+- Confirmation output
 
-```json
-{
-  "hooks": {
-    "UserPromptSubmit": [{
-      "hooks": [{
-        "type": "command",
-        "command": "./.claude/hooks/load-last-session.py"
-      }]
-    }]
-  }
-}
-```
+### 7. Report Result
 
-This hook will automatically load the most recent session notes (if < 7 days old) into context at the start of each conversation.
-
-### 9. Initialize Git and Push to GitHub
-
-```bash
-git init
-git add .
-git commit -m "Initial project setup
-
-- Initialize project structure
-- Add Claude configuration
-- Add project documentation
-- Add {project-name}.md for portfolio tracking
-- Create Sessions/ folder for development logs
-
-🤖 Generated with Claude Code"
-
-# Create GitHub repo (auto-creates on personal account)
-gh repo create {project-name} --private --source=. --remote=origin --push
-```
-
-If `gh` is not available or fails, provide manual instructions:
-```
-GitHub setup required:
-1. Create a new repository at https://github.com/new
-2. Name it: {project-name}
-3. Run: git remote add origin git@github.com:{username}/{project-name}.git
-4. Run: git push -u origin main
-```
-
-### 10. Confirmation
-
-After setup completes, provide a summary:
+After the script completes, summarize:
 
 ```
 ✓ Project initialized: {project-name}
 ✓ Type: {project-type}
-✓ Claude configuration created
-✓ Session auto-load hook configured
-✓ {project-name}.md created for portfolio tracking
-✓ Sessions/ folder created for development logs
-✓ Git repository created
-✓ Pushed to GitHub: https://github.com/{username}/{project-name}
+✓ GitHub: https://github.com/bawakul/{project-name}
 
-Next steps:
-1. cd "{project-name}"
-2. Fill in {project-name}.md with your project context
-3. Open in Cursor/Claude Code
-4. {type-specific-next-step}
+Files created:
+- .claude/CLAUDE.md (project-specific guidance)
+- README.md
+- {type-specific-file}
+- {project-name}.md (portfolio tracking)
 
-Your project is ready to build!
+Next: cd {project-name} && start building!
 ```
-
-**Type-Specific Next Steps:**
-- **Product**: "Start by refining SPEC.md with your requirements"
-- **Personal Tool**: "Define usage patterns in USAGE.md"
-- **Experiment**: "Set learning goals in LEARNING.md"
-- **Design**: "Gather inspiration in INSPIRATION.md"
 
 ## Implementation Notes
 
-- Use relative paths from current working directory (portfolio root)
-- Quote all paths in bash commands
-- Create all files in a single session
-- Ensure GitHub integration works or provide fallback
-- Keep templates minimal but useful
-- Focus on consistency across projects
+- Write LLM files BEFORE running the script (script does git add .)
+- Use conversation context to make files more useful than generic templates
+- Quote all paths in bash commands (portfolio has spaces in path)
+- The script handles errors gracefully with fallback instructions
