@@ -1,6 +1,0 @@
-filters:
-  and:
-    - file.name == "Notes"
-views:
-  - type: table
-    name: Table

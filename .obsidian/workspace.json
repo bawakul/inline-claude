@@ -6,19 +6,21 @@
       {
         "id": "ae976f369674c5e9",
         "type": "tabs",
-        "dimension": 35.785198555956676,
+        "dimension": 31.264236902050115,
         "children": [
           {
             "id": "38107aebe80c9d6e",
             "type": "leaf",
+            "pinned": true,
             "state": {
               "type": "bases",
               "state": {
-                "file": "Untitled.base",
+                "file": "Project Base.base",
                 "viewName": "Table"
               },
+              "pinned": true,
               "icon": "lucide-table",
-              "title": "Untitled"
+              "title": "Project Base"
             }
           }
         ]
@@ -26,7 +28,7 @@
       {
         "id": "5bbcbd5f265e2523",
         "type": "tabs",
-        "dimension": 64.21480144404332,
+        "dimension": 68.73576309794989,
         "children": [
           {
             "id": "1ea732d12fd9f211",
@@ -34,12 +36,26 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "claude-mode-manager/claude-mode-manager.md",
+                "file": "_Portfolio/Sessions/2025-11-25-garden-pruning-project-creation.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "claude-mode-manager"
+              "title": "2025-11-25-garden-pruning-project-creation"
+            }
+          },
+          {
+            "id": "6bd84871a3f04da6",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "project-norma/Dictation Best Practices (1880s-1990s) - Deep Research Report.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "Dictation Best Practices (1880s-1990s) - Deep Research Report"
             }
           }
         ]
@@ -99,7 +115,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 432.5
   },
   "right": {
     "id": "dc64da4fabf8a63d",
@@ -203,54 +219,55 @@
       "obsidian-kanban:Create new board": false
     }
   },
-  "active": "1ea732d12fd9f211",
+  "active": "128d1ca671780542",
   "lastOpenFiles": [
-    "_Portfolio/scripts/commit-project-migrations.sh",
-    "flask-rest-example/flask-rest-example.md",
-    "project-norma/project-norma.md",
-    "personal-site/personal-site.md",
-    "_Portfolio/Sessions/2025-11-05-notes-migration.md",
-    "_Templates/Notes-Template.md.tmp.3131.1762365304870",
-    "_Portfolio/scripts/add-bawa-notes-tag.py",
-    "ai-librarian/Notes.md",
-    "ultimate-guitar-scraper/Sessions",
-    "tiny-essay-editor/Sessions",
-    "tiny-essay-editor/tiny-essay-editor.md",
-    "super-productivity-setup/Sessions",
-    "super-productivity-setup/super-productivity-setup.md",
-    "screenshot-transcript-poc/Sessions",
-    "screenshot-transcript-poc/screenshot-transcript-poc.md",
-    "project-norma/Sessions",
-    "personal-site/Sessions",
-    "personal-library/Sessions",
-    "personal-library/personal-library.md",
-    "memo-transcriber/Sessions",
-    "memo-transcriber/memo-transcriber.md",
-    "knowledge-gardener/knowledge-gardener.md",
-    "internet-mindmap/internet-mindmap.md",
-    "guitar-tab-viewer/guitar-tab-viewer.md",
-    "expense-splitter/expense-splitter.md",
-    "claude-mode-manager/claude-mode-manager.md",
-    "ai-librarian/ai-librarian.md",
-    "Visual coding/Visual coding.md",
-    "Coaching-example/Coaching-example.md",
-    "Bureaucracy-Tool/Bureaucracy-Tool.md",
-    "internet-mindmap/README.md",
-    "README.md",
-    "guitar-tab-viewer/Notes.md",
-    "_Portfolio/Sessions/2025-11-03-review-planning.md",
-    "_Portfolio/Sessions/2025-11-03-claude-md-rewrite.md",
-    "_Portfolio/Sessions/2025-11-03-post-rename-completion.md",
-    "knowledge-gardener/Bawa's Garden/Screenshot 2025-09-12 at 19.03.13.png",
-    "knowledge-gardener/Bawa's Garden/Screenshot 2025-09-03 at 11.46.07.png",
-    "knowledge-gardener/Bawa's Garden/Pasted image 20250904230034.png",
+    "check-git-status.sh",
+    "doc-to-audio/Sessions/2025-11-28-chatterbox-performance-testing.md",
+    "doc-to-audio/speed-test-output.wav",
+    "doc-to-audio/test-chatterbox-chunked.wav",
+    "_Portfolio/SESSIONS.md",
+    "garden-pruning/garden-pruning.md",
+    "garden-pruning/README.md",
+    "_Portfolio/Sessions/2025-11-25-garden-pruning-project-creation.md",
+    "doc-to-audio/venv/lib/python3.11/site-packages/perth/perth_net/pretrained",
+    "doc-to-audio/venv/lib/python3.11/site-packages/perth/perth_net/perth_net_implicit",
+    "doc-to-audio/venv/lib/python3.11/site-packages/perth/perth_net/__pycache__",
+    "doc-to-audio/venv/lib/python3.11/site-packages/perth/perth_net/__init__.py",
+    "doc-to-audio/venv/lib/python3.11/site-packages/perth/__pycache__/watermarker.cpython-311.pyc",
+    "doc-to-audio/venv/lib/python3.11/site-packages/perth/cli/watermark_cli.py",
+    "doc-to-audio/venv/lib/python3.11/site-packages/perth/cli/__pycache__",
+    "doc-to-audio/venv/lib/python3.11/site-packages/perth/cli/__init__.py",
+    "doc-to-audio/venv/lib/python3.11/site-packages/~umpy/random/LICENSE.md",
+    "doc-to-audio/doc-to-audio.md",
+    "_Portfolio/REVIEW-AUTOMATION.md",
+    "_Portfolio/Sessions/2025-11-25-task-curation-system-proposal.md",
+    "garden-pruning/USAGE.md",
+    "doc-to-audio/Sessions/2025-11-25-tts-engine-testing.md",
+    "doc-to-audio/venv/lib/python3.11/site-packages/TTS/server/static/coqui-log-green-TTS.png",
+    "doc-to-audio/venv/lib/python3.11/site-packages/TTS/vocoder/README.md",
+    "doc-to-audio/venv/lib/python3.11/site-packages/TTS/server/README.md",
+    "doc-to-audio/venv/lib/python3.11/site-packages/TTS/encoder/README.md",
+    "doc-to-audio/venv/lib/python3.11/site-packages/librosa-0.11.0.dist-info/LICENSE.md",
+    "doc-to-audio/venv/lib/python3.11/site-packages/flask/sansio/README.md",
+    "doc-to-audio/venv/lib/python3.11/site-packages/huggingface_hub/templates/datasetcard_template.md",
+    "doc-to-audio/venv/lib/python3.11/site-packages/huggingface_hub/templates/modelcard_template.md",
+    "doc-to-audio/venv/lib/python3.11/site-packages/matplotlib/mpl-data/sample_data/logo2.png",
+    "doc-to-audio/venv/lib/python3.11/site-packages/matplotlib/mpl-data/sample_data/grace_hopper.jpg",
+    "doc-to-audio/venv/lib/python3.11/site-packages/matplotlib/mpl-data/sample_data/Minduka_Present_Blue_Pack.png",
+    "doc-to-audio/venv/lib/python3.11/site-packages/matplotlib/mpl-data/images/zoom_to_rect_large.png",
+    "doc-to-audio/venv/lib/python3.11/site-packages/matplotlib/mpl-data/images/zoom_to_rect.svg",
+    "doc-to-audio/venv/lib/python3.11/site-packages/matplotlib/mpl-data/images/zoom_to_rect.png",
+    "doc-to-audio/venv/lib/python3.11/site-packages/matplotlib/mpl-data/images/zoom_to_rect-symbolic.svg",
+    "doc-to-audio/venv/lib/python3.11/site-packages/matplotlib/mpl-data/images/subplots_large.png",
+    "doc-to-audio/venv/lib/python3.11/site-packages/matplotlib/mpl-data/images/subplots.svg",
+    "doc-to-audio/venv/lib/python3.11/site-packages/pooch-1.8.2.dist-info/AUTHORS.md",
+    "doc-to-audio/venv/lib/python3.11/site-packages/sklearn/externals/array_api_extra/README.md",
+    "doc-to-audio/venv/lib/python3.11/site-packages/sklearn/externals/array_api_compat/README.md",
+    "doc-to-audio/venv/lib/python3.11/site-packages/torchgen/packaged/autograd/README.md",
+    "doc-to-audio/venv/lib/python3.11/site-packages/lazy_loader-0.4.dist-info/LICENSE.md",
+    "doc-to-audio/venv/lib/python3.11/site-packages/nltk-3.9.2.dist-info/licenses/AUTHORS.md",
+    "doc-to-audio/venv/lib/python3.11/site-packages/nltk-3.9.2.dist-info/licenses/README.md",
     "knowledge-gardener/Bawa's Garden/Desktop doc experiment.canvas",
-    "knowledge-gardener/Bawa's Garden/Screenshot 2025-09-03 at 12.06.32.png",
-    "knowledge-gardener/Bawa's Garden/Screenshot 2025-09-03 at 12.05.41.png",
-    "knowledge-gardener/Bawa's Garden/Screenshot 2025-09-03 at 11.11.39.png",
-    "knowledge-gardener/Bawa's Garden/Screenshot 2025-08-19 at 11.36.28.png",
-    "knowledge-gardener/Bawa's Garden/Screenshot 2025-09-02 at 21.50.03.png",
-    "knowledge-gardener/Bawa's Garden/Pasted image 20250818215403.png",
     "knowledge-gardener/Bawa's Garden/Desktop.canvas"
   ]
 }
