@@ -1,9 +1,26 @@
 ---
-description: Convert text to speech using the speaker subagent
+description: Convert text to speech using OpenAI's TTS API
 ---
 
-Use the speaker subagent to convert the following text to speech:
+Convert the following text to speech using the TTS script:
 
-[If user provided text after /speak, insert it here. Otherwise, use your most recent response from the conversation.]
+**Instructions:**
+1. Identify the text:
+   - If user provided text after `/speak`, use that (from ARGUMENTS)
+   - Otherwise, use your most recent response
 
-After delegating to the speaker subagent, output: 🔊
+2. Clean the text:
+   - Remove markdown formatting (**, `, ###, etc.)
+   - Remove code blocks entirely
+   - Remove URLs and file paths
+   - Keep only narrative, human-readable content
+   - Convert technical terms to speakable phrases
+
+3. Run the Python script:
+   ```bash
+   python .claude/skills/tts/scripts/text_to_speech.py "[cleaned text]" --voice nova --speed 1.1
+   ```
+
+4. Output: 🔊
+
+ARGUMENTS: $ARGUMENTS
