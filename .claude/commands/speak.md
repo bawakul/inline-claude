@@ -18,7 +18,7 @@ Convert the following text to speech using the TTS script:
 
 3. Run the Python script:
    ```bash
-   python .claude/skills/tts/scripts/text_to_speech.py "[cleaned text]" --voice nova --speed 1.1
+   python3 .claude/skills/tts/scripts/text_to_speech.py "[cleaned text]" --voice nova --speed 1.1
    ```
 
 4. Output: 🔊

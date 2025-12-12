@@ -7,8 +7,14 @@ import os
 import argparse
 from pathlib import Path
 from openai import OpenAI
+from dotenv import load_dotenv
 
 def main():
+    # Load environment variables from ~/.env
+    env_file = Path.home() / '.env'
+    if env_file.exists():
+        load_dotenv(env_file)
+
     parser = argparse.ArgumentParser(description='Convert text to speech')
     parser.add_argument('text', help='Text to convert')
     parser.add_argument('--voice', default='nova',
