@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Auto-rebuild session index after each session
+
+set -euo pipefail
+
+# Only run in portfolio root (has _Portfolio directory)
+if [[ ! -d "_Portfolio" ]]; then
+  exit 0  # Silent exit for subprojects
+fi
+
+# Get portfolio root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PORTFOLIO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# Run indexer
+python3 "$PORTFOLIO_ROOT/_Portfolio/scripts/build-session-index.py"

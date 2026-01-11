@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Auto-rebuild session index after each session (with smart change detection)
+
+set -euo pipefail
+
+# Only run in portfolio root (has _Portfolio directory)
+if [[ ! -d "_Portfolio" ]]; then
+  exit 0  # Silent exit for subprojects
+fi
+
+# Get portfolio root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PORTFOLIO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+INDEX_PATH="$PORTFOLIO_ROOT/_Portfolio/session-index.json"
+INDEXER_SCRIPT="$PORTFOLIO_ROOT/_Portfolio/scripts/build-session-index.py"
+
+# Force rebuild if --force flag passed (for manual testing)
+if [[ "${1:-}" == "--force" ]]; then
+  echo "🔄 Force rebuild requested..."
+  python3 "$INDEXER_SCRIPT"
+  exit 0
+fi
+
+# Check for uncommitted session changes via git
+if git status --porcelain 2>/dev/null | grep -q "Sessions/.*\.md"; then
+  echo "🔄 Session changes detected (git status)..."
+  python3 "$INDEXER_SCRIPT"
+  exit 0
+fi
+
+# Fallback: Check if any session file is newer than index
+if [[ -f "$INDEX_PATH" ]]; then
+  # Find newest session file across all Sessions directories
+  NEWEST_SESSION=$(find "$PORTFOLIO_ROOT" -path "*/Sessions/*.md" -type f -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -n1)
+
+  if [[ -n "$NEWEST_SESSION" ]] && [[ "$NEWEST_SESSION" -nt "$INDEX_PATH" ]]; then
+    echo "🔄 Newer session file detected (mtime check)..."
+    python3 "$INDEXER_SCRIPT"
+    exit 0
+  fi
+
+  # Index exists and is up to date
+  echo "✅ Session index up to date (no rebuild needed)"
+else
+  # No index exists - build initial index
+  echo "🔄 Building initial session index..."
+  python3 "$INDEXER_SCRIPT"
+fi
