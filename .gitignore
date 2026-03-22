@@ -29,3 +29,29 @@ Thumbs.db
 
 # Claude sessions (local only)
 .claude/sessions/
+
+# ── GSD baseline (auto-generated) ──
+.gsd
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.code-workspace
+.env
+.env.*
+!.env.example
+node_modules/
+.next/
+dist/
+build/
+__pycache__/
+*.pyc
+.venv/
+venv/
+target/
+vendor/
+*.log
+coverage/
+.cache/
+tmp/
