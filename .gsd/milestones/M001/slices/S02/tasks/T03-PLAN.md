@@ -69,3 +69,10 @@ The integration tests don't need a live MCP connection. They test the HTTP layer
 - `channel/__tests__/server.test.ts` — integration tests for HTTP endpoints
 - `channel/vitest.config.ts` — vitest configuration for channel project
 - `.mcp.json` — MCP server registration at project root
+
+## Observability Impact
+
+- **Integration test coverage:** `bun test -t "integration"` runs all HTTP contract tests — future agents can verify the server contract with a single command
+- **Test failure diagnostics:** Each integration test produces descriptive assertion messages showing expected vs actual HTTP status/body, making failures self-explanatory
+- **MCP registration validation:** `node -e "..."` one-liner verifies `.mcp.json` structure without needing to start a server — useful for CI or agent preflight checks
+- **No new runtime signals:** This task adds tests and config, not runtime behavior. Runtime observability surfaces were established in T01 (store logs) and T02 (HTTP error responses, `[channel]` structured logs)

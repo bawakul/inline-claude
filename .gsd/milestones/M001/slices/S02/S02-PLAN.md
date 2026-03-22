@@ -60,7 +60,7 @@
   - Verify: `cd channel && npx tsc --noEmit` (type-checks), `cd channel && bun run server.ts &; sleep 1; curl -s http://127.0.0.1:4321/health; kill %1` returns 200
   - Done when: `server.ts` type-checks, server starts and responds to `/health`
 
-- [ ] **T03: Integration tests and MCP registration** `est:30m`
+- [x] **T03: Integration tests and MCP registration** `est:30m`
   - Why: Proves the HTTP contract works end-to-end (R003, R005 verification), validates the reply tool wiring (R006 verification), and registers the channel for Claude Code discovery.
   - Files: `channel/__tests__/server.test.ts`, `.mcp.json`
   - Do: Write integration tests that start `Bun.serve()` on a random port (import server setup as a function, or use `Bun.spawn` to start the server process). Test: POST /prompt with valid body → 200 + `{request_id}`, POST /prompt with empty body → 400, GET /poll with valid pending id → `{status: "pending"}`, programmatically call `store.storeReply()` then GET /poll → `{status: "complete", response: "..."}`, GET /poll with unknown id → 404, GET /health → 200. Create `.mcp.json` at project root: `{"mcpServers": {"obsidian-chat": {"command": "bun", "args": ["./channel/server.ts"]}}}`. Run full test suite. Update `.gitignore` if needed to track `channel/` properly.

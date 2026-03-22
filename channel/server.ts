@@ -120,7 +120,137 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 });
 
 // ---------------------------------------------------------------------------
-// Start MCP transport, then HTTP
+// Exported fetch handler factory — usable in integration tests without MCP
+// ---------------------------------------------------------------------------
+
+export interface NotifyFn {
+	(params: { content: string; meta: { request_id: string; filename: string; line: string } }): Promise<void>;
+}
+
+/**
+ * Creates the HTTP fetch handler independently of MCP transport and port
+ * binding. The optional `notifier` callback is invoked on new prompts;
+ * when omitted (or when `isConnected` returns false) notifications are
+ * skipped — matching the production behavior when MCP isn't connected.
+ */
+export function createFetchHandler(opts?: {
+	notifier?: NotifyFn;
+	isConnected?: () => boolean;
+}): (req: Request) => Promise<Response> {
+	const notifier = opts?.notifier;
+	const isConnected = opts?.isConnected ?? (() => false);
+
+	return async (req: Request): Promise<Response> => {
+		try {
+			const url = new URL(req.url);
+			const { pathname } = url;
+
+			// GET /health — liveness probe
+			if (req.method === "GET" && pathname === "/health") {
+				return new Response("ok", { status: 200 });
+			}
+
+			// POST /prompt — create request and notify Claude
+			if (req.method === "POST" && pathname === "/prompt") {
+				let body: unknown;
+				try {
+					body = await req.json();
+				} catch {
+					return Response.json(
+						{ error: "Invalid JSON body" },
+						{ status: 400 },
+					);
+				}
+
+				const { filename, line, query } = body as Record<string, unknown>;
+
+				if (
+					typeof filename !== "string" ||
+					typeof line !== "number" ||
+					typeof query !== "string"
+				) {
+					return Response.json(
+						{
+							error:
+								"Bad request: body must include filename (string), line (number), query (string)",
+						},
+						{ status: 400 },
+					);
+				}
+
+				if (query.trim() === "") {
+					return Response.json(
+						{ error: "Bad request: query must not be empty" },
+						{ status: 400 },
+					);
+				}
+
+				const { request_id } = createRequest(filename, line, query);
+
+				if (isConnected() && notifier) {
+					try {
+						await notifier({
+							content: query,
+							meta: {
+								request_id,
+								filename,
+								line: String(line),
+							},
+						});
+						console.error(
+							`[channel] request ${request_id} created, notification sent`,
+						);
+					} catch (err) {
+						// Notification failure is non-fatal — the request is still
+						// created and can be polled. Claude just won't see it proactively.
+						console.error(
+							`[channel] request ${request_id} created, notification failed: ${err}`,
+						);
+					}
+				} else {
+					console.error(
+						`[channel] request ${request_id} created, notification skipped (no MCP)`,
+					);
+				}
+
+				return Response.json({ request_id }, { status: 200 });
+			}
+
+			// GET /poll/:id — check request status
+			if (req.method === "GET" && pathname.startsWith("/poll/")) {
+				const requestId = pathname.split("/")[2];
+				if (!requestId) {
+					return Response.json(
+						{ error: "Missing request_id" },
+						{ status: 400 },
+					);
+				}
+
+				const status = getStatus(requestId);
+				if (!status) {
+					return Response.json(
+						{ error: "Not found" },
+						{ status: 404 },
+					);
+				}
+
+				return Response.json(status, { status: 200 });
+			}
+
+			// Fallback — unknown route
+			return Response.json({ error: "Not found" }, { status: 404 });
+		} catch (err) {
+			console.error(`[channel] HTTP error: ${err}`);
+			return Response.json(
+				{ error: "Internal server error" },
+				{ status: 500 },
+			);
+		}
+	};
+}
+
+// ---------------------------------------------------------------------------
+// Start MCP transport, then HTTP (only when run as main script)
 // ---------------------------------------------------------------------------
 
 let mcpConnected = false;
@@ -135,119 +265,31 @@ async function main() {
 
 	const port = Number(process.env.PORT) || 4321;
 
+	const fetchHandler = createFetchHandler({
+		notifier: async (params) => {
+			await server.notification({
+				method: "notifications/claude/channel",
+				params,
+			} as any);
+		},
+		isConnected: () => mcpConnected,
+	});
+
 	Bun.serve({
 		port,
 		hostname: "127.0.0.1",
-
-		async fetch(req: Request): Promise<Response> {
-			try {
-				const url = new URL(req.url);
-				const { pathname } = url;
-
-				// GET /health — liveness probe
-				if (req.method === "GET" && pathname === "/health") {
-					return new Response("ok", { status: 200 });
-				}
-
-				// POST /prompt — create request and notify Claude
-				if (req.method === "POST" && pathname === "/prompt") {
-					let body: unknown;
-					try {
-						body = await req.json();
-					} catch {
-						return Response.json(
-							{ error: "Invalid JSON body" },
-							{ status: 400 },
-						);
-					}
-
-					const { filename, line, query } = body as Record<string, unknown>;
-
-					if (
-						typeof filename !== "string" ||
-						typeof line !== "number" ||
-						typeof query !== "string"
-					) {
-						return Response.json(
-							{
-								error:
-									"Bad request: body must include filename (string), line (number), query (string)",
-							},
-							{ status: 400 },
-						);
-					}
-
-					const { request_id } = createRequest(filename, line, query);
-
-					if (mcpConnected) {
-						try {
-							await server.notification({
-								method: "notifications/claude/channel",
-								params: {
-									content: query,
-									meta: {
-										request_id,
-										filename,
-										line: String(line),
-									},
-								},
-							} as any);
-							console.error(
-								`[channel] request ${request_id} created, notification sent`,
-							);
-						} catch (err) {
-							// Notification failure is non-fatal — the request is still
-							// created and can be polled. Claude just won't see it proactively.
-							console.error(
-								`[channel] request ${request_id} created, notification failed: ${err}`,
-							);
-						}
-					} else {
-						console.error(
-							`[channel] request ${request_id} created, notification skipped (no MCP)`,
-						);
-					}
-
-					return Response.json({ request_id }, { status: 200 });
-				}
-
-				// GET /poll/:id — check request status
-				if (req.method === "GET" && pathname.startsWith("/poll/")) {
-					const requestId = pathname.split("/")[2];
-					if (!requestId) {
-						return Response.json(
-							{ error: "Missing request_id" },
-							{ status: 400 },
-						);
-					}
-
-					const status = getStatus(requestId);
-					if (!status) {
-						return Response.json(
-							{ error: "Not found" },
-							{ status: 404 },
-						);
-					}
-
-					return Response.json(status, { status: 200 });
-				}
-
-				// Fallback — unknown route
-				return Response.json({ error: "Not found" }, { status: 404 });
-			} catch (err) {
-				console.error(`[channel] HTTP error: ${err}`);
-				return Response.json(
-					{ error: "Internal server error" },
-					{ status: 500 },
-				);
-			}
-		},
+		fetch: fetchHandler,
 	});
 
 	console.error(`[channel] HTTP listening on 127.0.0.1:${port}`);
 }
 
-main().catch((err) => {
-	console.error(`[channel] fatal: ${err}`);
-	process.exit(1);
-});
+// Only start the server when running as the main script (not when imported
+// by tests). Bun's import.meta.main is true when `bun run server.ts` is
+// invoked directly, false when imported via `import ... from "./server"`.
+if (import.meta.main) {
+	main().catch((err) => {
+		console.error(`[channel] fatal: ${err}`);
+		process.exit(1);
+	});
+}
