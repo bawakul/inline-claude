@@ -14,6 +14,9 @@ export class Plugin {
 	async saveData(_data: any): Promise<void> {}
 	registerEditorSuggest(_suggest: any): void {}
 	addSettingTab(_tab: any): void {}
+	registerInterval(id: number): number {
+		return id;
+	}
 }
 
 export class App {}
@@ -21,6 +24,9 @@ export class App {}
 export class Editor {
 	getLine(_line: number): string {
 		return "";
+	}
+	lineCount(): number {
+		return 0;
 	}
 	replaceRange(_replacement: string, _from: EditorPosition, _to?: EditorPosition): void {}
 	getCursor(): EditorPosition {
@@ -120,4 +126,13 @@ export class TFile {
 	basename: string = "";
 	extension: string = "md";
 	name: string = "";
+}
+
+/**
+ * Mock of Obsidian's requestUrl. Default implementation throws —
+ * tests should use vi.mocked(requestUrl).mockResolvedValue(...) to
+ * provide scenario-specific responses.
+ */
+export async function requestUrl(_params: any): Promise<any> {
+	throw new Error("requestUrl not mocked for this test");
 }

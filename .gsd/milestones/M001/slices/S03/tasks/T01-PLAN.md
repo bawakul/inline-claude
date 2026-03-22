@@ -77,3 +77,10 @@ Create all the building blocks for the end-to-end loop before wiring them togeth
 - `src/__mocks__/obsidian.ts` — extended with `requestUrl` mock and `registerInterval`
 - `src/__tests__/callout.test.ts` — extended with new function tests
 - `src/__tests__/channel-client.test.ts` — new test file
+
+## Observability Impact
+
+- **Settings surface:** `channelPort` and `pollingTimeoutMs` are inspectable via `plugin.settings` at runtime. Future agents can read these to verify configuration before debugging connection issues.
+- **Callout helpers:** Pure functions — no runtime state. Testable via unit tests. Failure is visible as malformed callout text in the editor.
+- **Channel client:** `sendPrompt` and `pollReply` return structured `{ok, error}` results. Error messages include the failure reason (connection refused, HTTP status, timeout). T02 will add `console.log` at call sites; this task provides the structured error surface those logs will consume.
+- **Mock surface:** `requestUrl` mock in `__mocks__/obsidian.ts` is the test-time inspection point. Tests verify all three outcomes (success, HTTP error, network error) for both client functions.

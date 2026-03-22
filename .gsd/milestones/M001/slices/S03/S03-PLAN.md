@@ -42,7 +42,7 @@
 
 ## Tasks
 
-- [ ] **T01: Add settings, callout helpers, and HTTP client module with tests** `est:1h`
+- [x] **T01: Add settings, callout helpers, and HTTP client module with tests** `est:1h`
   - Why: All new building blocks needed before wiring — settings for channel config, callout functions for response/error rendering and placeholder replacement, HTTP client for channel communication. Each is independently testable.
   - Files: `src/settings.ts`, `src/callout.ts`, `src/channel-client.ts`, `src/__tests__/callout.test.ts`, `src/__tests__/channel-client.test.ts`, `src/__mocks__/obsidian.ts`
   - Do: (1) Add `channelPort` (default 4321) and `pollingTimeoutMs` (default 30000) to settings interface, defaults, and settings tab. (2) Add `buildResponseCallout(query, response)`, `buildErrorCallout(query, errorMsg)`, `findCalloutRange(editor, nearLine, marker)`, and `replaceCalloutBlock(editor, range, newContent)` to `callout.ts`. (3) Create `src/channel-client.ts` with `sendPrompt(port, payload)` and `pollReply(port, requestId)` using Obsidian's `requestUrl`. (4) Add `requestUrl` mock to `src/__mocks__/obsidian.ts`. (5) Write unit tests for all new functions. Key constraints: `requestUrl` needs `{url, method, body, throw: false}` signature; `findCalloutRange` must scan ±10 lines from expected position; callout builders must match `> [!claude]` format with `> ` line prefixes.
