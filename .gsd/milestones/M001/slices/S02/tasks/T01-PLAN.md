@@ -68,3 +68,10 @@ This is the foundation — every other piece in S02 depends on the store, and th
 - `channel/tsconfig.json` — TypeScript config for channel subdirectory
 - `channel/store.ts` — Pure request store with CRUD + TTL
 - `channel/__tests__/store.test.ts` — Unit tests for store
+
+## Observability Impact
+
+- **New signals:** `console.error` structured logs with `[channel]` prefix from store operations: `[channel] request created: <request_id>`, `[channel] reply stored: <request_id>`, `[channel] request expired: <request_id>`. All via `console.error` — stdout is reserved for MCP JSON-RPC.
+- **Inspection:** The store's `getStatus()` function is the primary diagnostic surface — returns full request state including status, query, filename, line, and response text.
+- **Failure visibility:** `storeReply` returns `false` for unknown IDs or double-replies. `getStatus` returns `null` for expired/unknown entries. These are testable failure modes.
+- **Future agent:** Run `bun test` in `channel/` to verify store behavior. Read `store.test.ts` for the full contract. The test suite covers happy path, error paths, and TTL expiry.

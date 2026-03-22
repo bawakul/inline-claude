@@ -29,6 +29,7 @@
 - `cd channel && bun test -- --grep "integration"` — HTTP integration tests pass (POST /prompt → 200 + request_id, GET /poll → pending, store reply → GET /poll → complete, GET /poll unknown id → 404, POST /prompt with bad body → 400)
 - `test -f .mcp.json` — MCP registration file exists at project root
 - `cd channel && bun run server.ts &; sleep 1; curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:4321/prompt -H 'Content-Type: application/json' -d '{"filename":"test.md","line":1,"query":"hello"}'` returns `200`
+- `cd channel && bun test -- --grep "returns false|returns null|400|404|expiry"` — failure-path tests pass (unknown ID → null, double-reply → false, bad body → 400, unknown poll → 404, TTL expiry → null)
 
 ## Observability / Diagnostics
 
@@ -45,7 +46,7 @@
 
 ## Tasks
 
-- [ ] **T01: Scaffold channel project with request store and unit tests** `est:30m`
+- [x] **T01: Scaffold channel project with request store and unit tests** `est:30m`
   - Why: Foundation layer — the pure request store is dependency-free and needed by both HTTP endpoints and the MCP reply tool. Setting up the channel subdirectory with its own package.json also establishes the build/test infrastructure.
   - Files: `channel/package.json`, `channel/tsconfig.json`, `channel/store.ts`, `channel/__tests__/store.test.ts`
   - Do: Create `channel/` subdirectory with Bun-compatible `package.json` (deps: `@modelcontextprotocol/sdk`; devDeps: `vitest`, `typescript`, `@types/bun`). Create `tsconfig.json` targeting ES2022 with Bun types. Implement `store.ts` with `createRequest(filename, line, query)` → `{request_id}`, `storeReply(request_id, text)` → boolean, `getStatus(request_id)` → `{status, response?, filename?, line?, query?} | null`. Use `Map` with 5-minute TTL via `setTimeout`. Write thorough unit tests for all store operations including TTL expiry (use `vi.useFakeTimers()`), unknown-id handling, and double-reply rejection.

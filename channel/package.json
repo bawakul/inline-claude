@@ -1,0 +1,17 @@
+{
+	"name": "obsidian-chat-channel",
+	"version": "0.1.0",
+	"type": "module",
+	"scripts": {
+		"test": "vitest run",
+		"start": "bun run server.ts"
+	},
+	"dependencies": {
+		"@modelcontextprotocol/sdk": "latest"
+	},
+	"devDependencies": {
+		"@types/bun": "latest",
+		"typescript": "~5.7",
+		"vitest": "^3.0"
+	}
+}
