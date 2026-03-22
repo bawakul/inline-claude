@@ -19,7 +19,15 @@ export class Plugin {
 	}
 }
 
-export class App {}
+export class App {
+	workspace = {
+		getActiveFile: (): TFile | null => {
+			const f = new TFile();
+			f.path = "test.md";
+			return f;
+		},
+	};
+}
 
 export class Editor {
 	getLine(_line: number): string {

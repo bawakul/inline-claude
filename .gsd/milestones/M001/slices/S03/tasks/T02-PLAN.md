@@ -81,3 +81,10 @@ Connect all T01 building blocks into the live flow. When the user selects a sugg
 - `src/suggest.ts` — `selectSuggestion` wired to POST → poll → replace/error async flow
 - `src/__mocks__/obsidian.ts` — extended with `workspace.getActiveFile()` on App
 - `src/__tests__/suggest.test.ts` — extended with wiring, timeout, and error path tests
+
+## Observability Impact
+
+- **New signal: `activePollers.size`** — inspectable at runtime to see how many polls are in-flight
+- **Console logs:** `"Polling started for ${requestId}"`, `"Polling cancelled for ${requestId}"`, `"Cleaned up ${count} active pollers"` on unload, plus per-tick logs for poll complete/timeout/error
+- **In-document error callout** — send failure, poll timeout, or poll error renders `> [!claude] Error` callout directly in the note
+- **File-navigation guard** — poller cancels silently when user navigates away, preventing stale replacements

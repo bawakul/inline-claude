@@ -7,7 +7,8 @@ import {
 	TFile,
 } from "obsidian";
 import type ClaudeChatPlugin from "./main";
-import { insertCallout } from "./callout";
+import { insertCallout, findCalloutRange, replaceCalloutBlock, buildResponseCallout, buildErrorCallout } from "./callout";
+import { sendPrompt, pollReply } from "./channel-client";
 
 /**
  * Pure function for trigger detection — exported for unit testing.
@@ -86,10 +87,85 @@ export class ClaudeSuggest extends EditorSuggest<string> {
 
 		insertCallout(editor, start, end, value);
 
+		const filename = file ? file.path : "";
+		const nearLine = start.line;
+
 		this.plugin.lastQuery = {
-			filename: file ? file.path : "",
-			line: start.line,
+			filename,
+			line: nearLine,
 			query: value,
 		};
+
+		const port = this.plugin.settings.channelPort;
+		const timeoutMs = this.plugin.settings.pollingTimeoutMs;
+		const filePath = filename;
+
+		// Fire-and-forget async flow — selectSuggestion must be synchronous
+		(async () => {
+			console.log(`Sending prompt to channel: "${value}"`);
+			const sendResult = await sendPrompt(port, { filename, line: nearLine, query: value });
+
+			if (!sendResult.ok) {
+				console.log(`Send failed: ${sendResult.error}`);
+				const range = findCalloutRange(editor, nearLine);
+				if (range) {
+					replaceCalloutBlock(editor, range.from, range.to, buildErrorCallout(value, sendResult.error));
+				}
+				return;
+			}
+
+			const requestId = sendResult.request_id;
+			console.log(`Prompt sent, request_id: ${requestId}`);
+			const startTime = Date.now();
+
+			const intervalId = setInterval(async () => {
+				// Check if user navigated away
+				const activeFile = this.plugin.app.workspace.getActiveFile?.();
+				if (activeFile && activeFile.path !== filePath) {
+					console.log(`File changed (${filePath} → ${activeFile.path}), cancelling poller for ${requestId}`);
+					this.plugin.cancelPoller(requestId);
+					return;
+				}
+
+				const elapsed = Date.now() - startTime;
+				if (elapsed > timeoutMs) {
+					console.log(`Poll timeout for ${requestId} after ${elapsed}ms`);
+					const range = findCalloutRange(editor, nearLine);
+					if (range) {
+						replaceCalloutBlock(editor, range.from, range.to, buildErrorCallout(value, "Timed out waiting for Claude's response"));
+					}
+					this.plugin.cancelPoller(requestId);
+					return;
+				}
+
+				const pollResult = await pollReply(port, requestId);
+
+				if (!pollResult.ok) {
+					console.log(`Poll error for ${requestId}: ${pollResult.error}`);
+					const range = findCalloutRange(editor, nearLine);
+					if (range) {
+						replaceCalloutBlock(editor, range.from, range.to, buildErrorCallout(value, pollResult.error));
+					}
+					this.plugin.cancelPoller(requestId);
+					return;
+				}
+
+				if (pollResult.status === "complete") {
+					console.log(`Poll complete for ${requestId}`);
+					const range = findCalloutRange(editor, nearLine);
+					if (range) {
+						replaceCalloutBlock(editor, range.from, range.to, buildResponseCallout(value, pollResult.response));
+					}
+					this.plugin.cancelPoller(requestId);
+					return;
+				}
+
+				// Still pending — continue polling
+			}, 1000) as unknown as number;
+
+			// Register with both Obsidian (auto-cleanup) and our tracker
+			this.plugin.registerInterval(intervalId);
+			this.plugin.registerPoller(requestId, intervalId);
+		})();
 	}
 }

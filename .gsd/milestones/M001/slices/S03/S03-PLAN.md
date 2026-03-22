@@ -49,7 +49,7 @@
   - Verify: `npx vitest run` passes with new tests, `npm run build` succeeds
   - Done when: All new functions exist, are exported, pass unit tests, and the plugin builds cleanly
 
-- [ ] **T02: Wire end-to-end loop with polling, error handling, and cleanup** `est:1h`
+- [x] **T02: Wire end-to-end loop with polling, error handling, and cleanup** `est:1h`
   - Why: Connects the building blocks into the live flow — selectSuggestion triggers POST, starts polling, replaces placeholder on completion or error, and cleans up on unload. This is the final assembly that makes the demo work.
   - Files: `src/suggest.ts`, `src/main.ts`, `src/callout.ts`, `src/channel-client.ts`, `src/__tests__/suggest.test.ts`
   - Do: (1) Add `activePollers: Map<string, number>` to `ClaudeChatPlugin`, add `registerPoller(id, intervalId)` and `cancelPoller(id)` methods. (2) In `onunload()`, iterate `activePollers` and `clearInterval` each, log cleanup. (3) In `selectSuggestion()`, after inserting placeholder: fire async IIFE that calls `sendPrompt()`, then starts `window.setInterval` polling via `plugin.registerInterval()`. On poll complete → `replaceCalloutBlock()` with response callout. On timeout → replace with error callout. On send failure → replace with error callout immediately. (4) Handle editor staleness: check active file matches before replacing. (5) Add `registerInterval` to obsidian mock. (6) Add tests for the wiring: verify `selectSuggestion` calls `sendPrompt` and starts polling.

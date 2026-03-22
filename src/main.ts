@@ -10,6 +10,7 @@ export default class ClaudeChatPlugin extends Plugin {
 	settings: ClaudeChatSettings = DEFAULT_SETTINGS;
 	lastQuery: { filename: string; line: number; query: string } | null =
 		null;
+	activePollers: Map<string, number> = new Map();
 
 	async onload() {
 		await this.loadSettings();
@@ -19,7 +20,29 @@ export default class ClaudeChatPlugin extends Plugin {
 	}
 
 	onunload() {
+		const count = this.activePollers.size;
+		for (const [, intervalId] of this.activePollers) {
+			clearInterval(intervalId);
+		}
+		this.activePollers.clear();
+		if (count > 0) {
+			console.log(`Cleaned up ${count} active pollers`);
+		}
 		console.log("Claude Chat plugin unloaded");
+	}
+
+	registerPoller(requestId: string, intervalId: number): void {
+		this.activePollers.set(requestId, intervalId);
+		console.log(`Polling started for ${requestId}`);
+	}
+
+	cancelPoller(requestId: string): void {
+		const intervalId = this.activePollers.get(requestId);
+		if (intervalId !== undefined) {
+			clearInterval(intervalId);
+			this.activePollers.delete(requestId);
+			console.log(`Polling cancelled for ${requestId}`);
+		}
 	}
 
 	async loadSettings(): Promise<void> {
