@@ -42,7 +42,7 @@
   - Verify: `npm run build && test -f main.js && node -e "require('./main.js')"`
   - Done when: `npm run build` exits 0, `main.js` exists in project root, and the module is loadable without errors
 
-- [ ] **T02: Implement EditorSuggest freeform trigger, callout insertion, settings tab, and unit tests** `est:1h`
+- [x] **T02: Implement EditorSuggest freeform trigger, callout insertion, settings tab, and unit tests** `est:1h`
   - Why: This is the core of S01 — the EditorSuggest freeform pattern (R001, R002), callout insertion (R004), and configurable trigger (R010). Unit tests prove the pure logic without requiring Obsidian runtime.
   - Files: `src/suggest.ts`, `src/callout.ts`, `src/settings.ts`, `src/main.ts`, `src/__tests__/callout.test.ts`, `src/__tests__/suggest.test.ts`, `vitest.config.ts`
   - Do: (1) Create `src/callout.ts` with `insertCallout(editor, line, content)` and `buildCalloutText(content)` helpers. (2) Create `src/suggest.ts` with `ClaudeSuggest extends EditorSuggest<string>` implementing `onTrigger`, `getSuggestions`, `renderSuggestion`, `selectSuggestion`. (3) Create `src/settings.ts` with `ClaudeChatSettings` interface and `ClaudeChatSettingTab`. (4) Wire everything into `src/main.ts`. (5) Write unit tests for `buildCalloutText` and trigger detection logic. (6) Add vitest config that externalizes `obsidian`.

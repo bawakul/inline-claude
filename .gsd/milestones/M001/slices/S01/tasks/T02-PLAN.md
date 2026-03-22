@@ -94,6 +94,15 @@ This task delivers R001 (trigger opens dropdown), R002 (freeform text as suggest
 - `grep -q "buildCalloutText" src/callout.ts` — callout helper exported
 - `grep -q "triggerPhrase" src/settings.ts` — settings interface has trigger field
 
+## Observability Impact
+
+- **Trigger detection signal:** `findTrigger()` pure function enables unit-test observation of trigger matching without Obsidian runtime. A future agent inspects this via `npx vitest run` — failing tests pinpoint whether `onTrigger` logic regressed.
+- **Callout formatting signal:** `buildCalloutText()` pure function is independently testable. Incorrect callout output surfaces as a test failure with expected/actual diff.
+- **Build health:** `npm run build` exit code remains the primary signal. TypeScript strict mode catches type errors at build time. Any new import or wiring mistake surfaces as a build failure with file:line detail from esbuild.
+- **Settings persistence:** After plugin runs in Obsidian, `data.json` in the plugin directory stores the configured trigger phrase — inspectable without re-running the plugin.
+- **Plugin lifecycle:** `console.log("Claude Chat plugin loaded")` confirms `onload()` ran and settings/suggest registration completed. If `onload()` throws, Obsidian dev console shows the stack trace.
+- **Failure state visibility:** `onTrigger` returning `null` vs a context object is the primary runtime observable for trigger detection — visible via Obsidian dev console logging or unit tests.
+
 ## Inputs
 
 - `package.json` — from T01, has vitest and obsidian dependencies
