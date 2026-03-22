@@ -27,6 +27,13 @@
 - `node -e "const m = require('./main.js'); console.log(typeof m.default)"` — plugin module exports correctly
 - Manual: Copy `main.js`, `manifest.json`, `styles.css` into `.obsidian/plugins/obsidian-claude-chat/`, enable plugin, type `;;test` → dropdown appears
 
+## Observability / Diagnostics
+
+- Runtime signals: `console.log` on plugin load/unload (standard Obsidian pattern)
+- Inspection surfaces: Obsidian Developer Console (Ctrl+Shift+I) shows plugin load messages and any errors
+- Failure visibility: TypeScript compile errors surface at build time; runtime errors appear in Obsidian console
+- Redaction constraints: none (no secrets or PII in this slice)
+
 ## Integration Closure
 
 - Upstream surfaces consumed: none (first slice, greenfield)

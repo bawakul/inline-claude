@@ -64,6 +64,12 @@ Create the complete Obsidian plugin build toolchain from scratch: `package.json`
 - `test -f manifest.json && node -e "JSON.parse(require('fs').readFileSync('manifest.json','utf8'))"` — valid JSON
 - `test -f styles.css` — empty stylesheet exists
 
+## Observability Impact
+
+- Signals added/changed: `console.log("Claude Chat plugin loaded/unloaded")` on lifecycle events
+- How a future agent inspects this: Obsidian Developer Console (Ctrl+Shift+I) — check for load message and any errors
+- Failure state exposed: esbuild compile errors at build time; missing module errors at Obsidian load time
+
 ## Inputs
 
 - `manifest.json` — does not exist yet, will be created
