@@ -1,0 +1,9 @@
+{
+	"id": "obsidian-claude-chat",
+	"name": "Claude Chat",
+	"version": "0.1.0",
+	"minAppVersion": "1.0.0",
+	"description": "Chat with Claude directly from your Obsidian notes using an inline trigger.",
+	"author": "Bawa's Lab",
+	"isDesktopOnly": true
+}

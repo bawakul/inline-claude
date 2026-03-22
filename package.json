@@ -1,6 +1,22 @@
 {
-  "name": "obsidian-claude-chat",
-  "version": "0.1.0",
-  "private": true,
-  "description": "Stub — T01 will populate this fully"
+	"name": "obsidian-claude-chat",
+	"version": "0.1.0",
+	"description": "Chat with Claude directly from your Obsidian notes using an inline trigger.",
+	"main": "main.js",
+	"scripts": {
+		"build": "node esbuild.config.mjs production",
+		"dev": "node esbuild.config.mjs",
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"obsidian": "latest"
+	},
+	"devDependencies": {
+		"@types/node": "^22",
+		"builtin-modules": "^4.0",
+		"esbuild": "^0.25",
+		"tslib": "^2.8",
+		"typescript": "~5.7",
+		"vitest": "^3.0"
+	}
 }

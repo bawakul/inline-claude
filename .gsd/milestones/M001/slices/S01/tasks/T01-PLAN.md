@@ -60,15 +60,16 @@ Create the complete Obsidian plugin build toolchain from scratch: `package.json`
 
 - `npm run build` exits 0
 - `test -f main.js` — output file exists
-- `node -e "require('./main.js')"` — module loads without error
+- `node -e "require('./main.js')"` — module loads without error (requires obsidian mock in bare Node)
 - `test -f manifest.json && node -e "JSON.parse(require('fs').readFileSync('manifest.json','utf8'))"` — valid JSON
 - `test -f styles.css` — empty stylesheet exists
 
 ## Observability Impact
 
-- Signals added/changed: `console.log("Claude Chat plugin loaded/unloaded")` on lifecycle events
-- How a future agent inspects this: Obsidian Developer Console (Ctrl+Shift+I) — check for load message and any errors
-- Failure state exposed: esbuild compile errors at build time; missing module errors at Obsidian load time
+- **Signals added:** `console.log` in `onload`/`onunload` — visible in Obsidian's dev console (`Ctrl+Shift+I`) to confirm plugin lifecycle
+- **Inspection surface:** `main.js` bundle can be inspected with `node -e` using an obsidian mock to verify export shape (`typeof m.default === 'function'`)
+- **Build failure visibility:** esbuild outputs detailed error messages with file/line references on build failure; non-zero exit code is machine-readable
+- **What's NOT observable yet:** No runtime behavior beyond lifecycle logging — T02 adds trigger detection, callout insertion, and settings which bring real runtime signals
 
 ## Inputs
 

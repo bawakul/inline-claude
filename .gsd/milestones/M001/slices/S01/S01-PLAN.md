@@ -27,13 +27,6 @@
 - `node -e "const m = require('./main.js'); console.log(typeof m.default)"` — plugin module exports correctly
 - Manual: Copy `main.js`, `manifest.json`, `styles.css` into `.obsidian/plugins/obsidian-claude-chat/`, enable plugin, type `;;test` → dropdown appears
 
-## Observability / Diagnostics
-
-- Runtime signals: `console.log` on plugin load/unload (standard Obsidian pattern)
-- Inspection surfaces: Obsidian Developer Console (Ctrl+Shift+I) shows plugin load messages and any errors
-- Failure visibility: TypeScript compile errors surface at build time; runtime errors appear in Obsidian console
-- Redaction constraints: none (no secrets or PII in this slice)
-
 ## Integration Closure
 
 - Upstream surfaces consumed: none (first slice, greenfield)
@@ -42,7 +35,7 @@
 
 ## Tasks
 
-- [ ] **T01: Scaffold Obsidian plugin build toolchain with minimal entry point** `est:30m`
+- [x] **T01: Scaffold Obsidian plugin build toolchain with minimal entry point** `est:30m`
   - Why: All subsequent work depends on a working build pipeline. Need `package.json`, `tsconfig.json`, `esbuild.config.mjs`, `manifest.json`, and a minimal `src/main.ts` that compiles.
   - Files: `package.json`, `tsconfig.json`, `esbuild.config.mjs`, `manifest.json`, `styles.css`, `src/main.ts`
   - Do: Create all config files following the `obsidian-sample-plugin` pattern exactly. `obsidian` and all `@codemirror/*`/`@lezer/*` packages must be externalized in esbuild. Entry point is `src/main.ts` exporting a `Plugin` subclass with no-op `onload`/`onunload`. Add `vitest` as dev dependency for unit testing in T02. Run `npm install` and `npm run build`.
@@ -55,6 +48,15 @@
   - Do: (1) Create `src/callout.ts` with `insertCallout(editor, line, content)` and `buildCalloutText(content)` helpers. (2) Create `src/suggest.ts` with `ClaudeSuggest extends EditorSuggest<string>` implementing `onTrigger`, `getSuggestions`, `renderSuggestion`, `selectSuggestion`. (3) Create `src/settings.ts` with `ClaudeChatSettings` interface and `ClaudeChatSettingTab`. (4) Wire everything into `src/main.ts`. (5) Write unit tests for `buildCalloutText` and trigger detection logic. (6) Add vitest config that externalizes `obsidian`.
   - Verify: `npm run build && npx vitest run`
   - Done when: Build succeeds, all unit tests pass, and the four source modules are correctly wired together
+
+## Observability / Diagnostics
+
+- **Build health:** `npm run build` exit code — 0 means toolchain is intact, non-zero with esbuild error output pinpoints the issue
+- **Plugin load signal:** `console.log("Claude Chat plugin loaded")` in Obsidian dev console confirms `onload()` ran
+- **Trigger detection:** `onTrigger` returning `null` vs a context object is the primary observable — check via unit tests or Obsidian dev console logging
+- **Settings persistence:** `data.json` in the plugin directory stores trigger phrase — inspectable without running the plugin
+- **Failure visibility:** TypeScript strict mode (`strictNullChecks`, `noImplicitAny`) catches type errors at build time; esbuild externalization errors surface as runtime `Cannot find module` in Obsidian console
+- **Redaction:** No secrets in this slice — no API keys, tokens, or credentials involved
 
 ## Files Likely Touched
 
