@@ -1,6 +1,6 @@
 {
 	"name": "inline-claude",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "Chat with Claude directly from your Obsidian notes using an inline trigger.",
 	"main": "main.js",
 	"scripts": {
