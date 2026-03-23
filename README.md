@@ -58,14 +58,19 @@ The plugin automatically sets up the channel server config (`.mcp.json`) and Cla
 
 ### 3. Start Claude Code
 
-Open the plugin settings and click **Start Claude Code**, or run manually:
+Open the plugin settings. You'll see two options:
+
+- **Start (safe mode)** — Claude asks for permission before running tools
+- **Start (auto-approve)** — Uses `--dangerously-skip-permissions`. Claude won't ask before reading, writing, or running commands. Faster, but it has full access to your filesystem.
+
+Both open a terminal window where you'll need to confirm once. Keep it running — Claude Code is now listening for your questions.
+
+Or start manually:
 
 ```bash
 cd /path/to/your/vault
 claude --dangerously-load-development-channels server:inline-claude
 ```
-
-Keep this running. Claude Code is now listening for your questions.
 
 ### 4. Type `;;` in any note
 
