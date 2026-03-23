@@ -67,7 +67,7 @@ import { App, Editor, TFile } from "obsidian";
 
 function makePlugin(overrides?: {
 	channelPort?: number;
-	pollingTimeoutMs?: number;
+	pollingTimeoutSecs?: number;
 	activeFilePath?: string | null;
 }) {
 	const app = new App();
@@ -87,7 +87,7 @@ function makePlugin(overrides?: {
 		settings: {
 			triggerPhrase: ";;",
 			channelPort: overrides?.channelPort ?? 4321,
-			pollingTimeoutMs: overrides?.pollingTimeoutMs ?? 30000,
+			pollingTimeoutSecs: overrides?.pollingTimeoutSecs ?? 60,
 		},
 		lastQuery: null as any,
 		activePollers: new Map<string, number>(),
@@ -240,11 +240,11 @@ describe("selectSuggestion wiring", () => {
 		expect(lastCall[0]).toContain("HTTP 500");
 	});
 
-	it("replaces callout with timeout error when polling exceeds pollingTimeoutMs", async () => {
+	it("replaces callout with timeout error when polling exceeds pollingTimeoutSecs", async () => {
 		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r1" });
 		mockPollReply.mockResolvedValue({ ok: true, status: "pending" });
 
-		const plugin = makePlugin({ pollingTimeoutMs: 3000 });
+		const plugin = makePlugin({ pollingTimeoutSecs: 3 });
 		const lines = ["> [!claude] Thinking...", "> hello"];
 		const editor = makeEditorWithLines(lines);
 

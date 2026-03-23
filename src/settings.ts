@@ -6,13 +6,13 @@ import * as path from "path";
 export interface ClaudeChatSettings {
 	triggerPhrase: string;
 	channelPort: number;
-	pollingTimeoutMs: number;
+	pollingTimeoutSecs: number;
 }
 
 export const DEFAULT_SETTINGS: ClaudeChatSettings = {
 	triggerPhrase: ";;",
 	channelPort: 4321,
-	pollingTimeoutMs: 30000,
+	pollingTimeoutSecs: 60,
 };
 
 /**
@@ -144,18 +144,18 @@ export class ClaudeChatSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Polling timeout")
+			.setName("Polling timeout (seconds)")
 			.setDesc(
-				"Max milliseconds to wait for a Claude response (default: 30000)"
+				"Max seconds to wait for a Claude response (default: 60)"
 			)
 			.addText((text) =>
 				text
-					.setPlaceholder("30000")
-					.setValue(String(this.plugin.settings.pollingTimeoutMs))
+					.setPlaceholder("60")
+					.setValue(String(this.plugin.settings.pollingTimeoutSecs))
 					.onChange(async (value) => {
 						const parsed = parseInt(value, 10);
 						if (!isNaN(parsed) && parsed > 0) {
-							this.plugin.settings.pollingTimeoutMs = parsed;
+							this.plugin.settings.pollingTimeoutSecs = parsed;
 							await this.plugin.saveSettings();
 						}
 					})

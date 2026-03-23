@@ -97,7 +97,7 @@ export class ClaudeSuggest extends EditorSuggest<string> {
 		};
 
 		const port = this.plugin.settings.channelPort;
-		const timeoutMs = this.plugin.settings.pollingTimeoutMs;
+		const timeoutMs = this.plugin.settings.pollingTimeoutSecs * 1000;
 		const filePath = filename;
 
 		// Fire-and-forget async flow — selectSuggestion must be synchronous
@@ -132,7 +132,7 @@ export class ClaudeSuggest extends EditorSuggest<string> {
 					console.log(`Poll timeout for ${requestId} after ${elapsed}ms`);
 					const range = findCalloutRange(editor, nearLine);
 					if (range) {
-						replaceCalloutBlock(editor, range.from, range.to, buildErrorCallout(value, "Timed out waiting for Claude's response"));
+						replaceCalloutBlock(editor, range.from, range.to, buildErrorCallout(value, "Timed out waiting for Claude's response. Check the terminal — Claude Code may need your input."));
 					}
 					this.plugin.cancelPoller(requestId);
 					return;
