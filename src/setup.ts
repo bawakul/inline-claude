@@ -129,10 +129,15 @@ async function ensureMcpJson(vaultPath: string, plugin: ClaudeChatPlugin): Promi
 		"channel.js"
 	);
 
+	const port = plugin.settings.channelPort;
+
 	const ourEntry = {
 		type: "stdio",
 		command: "bun",
 		args: ["run", channelJsPath],
+		env: {
+			PORT: String(port),
+		},
 	};
 
 	try {

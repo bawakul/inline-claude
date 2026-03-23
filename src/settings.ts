@@ -125,7 +125,7 @@ export class ClaudeChatSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Channel port")
 			.setDesc(
-				"Port the Claude channel server listens on (default: 4321)"
+				"Port the channel server listens on. Use a different port for each vault."
 			)
 			.addText((text) =>
 				text
@@ -136,6 +136,9 @@ export class ClaudeChatSettingTab extends PluginSettingTab {
 						if (!isNaN(parsed) && parsed > 0 && parsed <= 65535) {
 							this.plugin.settings.channelPort = parsed;
 							await this.plugin.saveSettings();
+							// Re-run setup to update .mcp.json with new port
+							const { ensureSetup } = require("./setup");
+							await ensureSetup(this.plugin);
 						}
 					})
 			);
