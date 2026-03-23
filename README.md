@@ -4,6 +4,10 @@ Ask Claude questions directly inside your Obsidian notes. Type `;;`, write your 
 
 No sidebar. No separate window. The conversation stays in your document.
 
+
+https://github.com/user-attachments/assets/02203656-e478-4cef-b4b0-bfb67d27a106
+
+
 ## Why
 
 Most AI integrations put the conversation somewhere else — a sidebar, a separate app, a chat window. You write in one place and talk to AI in another.
