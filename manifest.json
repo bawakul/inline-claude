@@ -1,9 +1,11 @@
 {
-	"id": "obsidian-claude-chat",
-	"name": "Claude Chat",
+	"id": "inline-claude",
+	"name": "Inline Claude",
 	"version": "0.1.0",
 	"minAppVersion": "1.0.0",
-	"description": "Chat with Claude directly from your Obsidian notes using an inline trigger.",
+	"description": "Ask Claude questions inline while writing. Type ;; to trigger, get responses as native callout blocks.",
 	"author": "Bawa's Lab",
+	"authorUrl": "https://github.com/bawakul",
+	"fundingUrl": "https://ko-fi.com/bawakul",
 	"isDesktopOnly": true
 }

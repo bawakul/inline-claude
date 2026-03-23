@@ -1,72 +1,113 @@
-# Portfolio Manager
+# Inline Claude
 
-A meta-project for managing multiple concurrent creative technology projects using Claude Code and Obsidian.
+Ask Claude questions directly inside your Obsidian notes. Type `;;`, write your question, press Enter — Claude's response appears as a callout block right where you're writing.
 
-## Concept
+No sidebar. No context switch. The conversation lives in your document.
 
-This is **the manager's repo** - it tracks the development and configuration of portfolio management infrastructure itself. The actual projects being managed live in their own folders and repositories.
+## How it works
 
-## How It Works
+1. Type `;;` anywhere in a note
+2. A dropdown appears with your question
+3. Press Enter — a `> [!claude] Thinking...` placeholder appears
+4. Claude Code reads your file, sees the context, and responds
+5. The placeholder is replaced with Claude's answer as a callout block
 
-### Three-Layer System
+Previous `> [!claude]` blocks in your note serve as conversation history — Claude sees them when responding.
 
-1. **Claude Code Portfolio Manager** (`.claude/CLAUDE.md`)
-   - AI assistant configured as a portfolio-level project manager
-   - Operates at meta-level across all projects
-   - Helps with prioritization, context switching, and pushing toward completion
+## What makes this different
 
-2. **Obsidian Vault** (`.obsidian/`)
-   - Visual interface for project tracking
-   - Each project has a `Notes.md` with metadata and running journal
-   - Dashboard views showing portfolio health
+Other Obsidian + AI plugins put the conversation in a sidebar panel. Inline Claude keeps it in your document. You never leave the writing surface.
 
-3. **Claude Code Skills** (`.claude/skills/`)
-   - `/init-project` - Initialize new projects with structure
-   - `/status` - Portfolio overview and current states
-   - `/sync` - Automatic metadata maintenance via git analysis
-   - `/review` - Weekly reflection and stalled project detection
+There's no tool layer or custom API wrapper. Claude Code already has full filesystem access, bash, search — everything. This plugin just bridges the gap between "I'm writing in a note" and "I want Claude to see this question."
 
-## Project Metadata Schema
+~150 lines of plugin code. ~100 lines of channel server. That's it.
 
-Each project folder contains `Notes.md`:
+## Requirements
 
-```markdown
----
-status: active|paused|blocked|completed
-type: product|tool|experiment|design
-last_worked: YYYY-MM-DD
-next_action: "What to do when resuming"
-repo: "https://github.com/..."
----
+- [Obsidian](https://obsidian.md/) (desktop)
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) v2.1.80+
+- [Bun](https://bun.sh/) runtime (for the channel server)
+- A Claude subscription (Pro, Max, or Team)
 
-# Project Name - Notes
+## Setup
 
-[Running notes and session summaries]
+### 1. Install the plugin
+
+Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/bawakul/obsidian-claude-chat/releases) and place them in your vault's `.obsidian/plugins/inline-claude/` directory.
+
+Or install via [BRAT](https://github.com/TfTHacker/obsidian42-brat): add `bawakul/obsidian-claude-chat` as a beta plugin.
+
+### 2. Set up the channel server
+
+Create a `.mcp.json` file in your vault root:
+
+```json
+{
+  "mcpServers": {
+    "inline-claude": {
+      "type": "stdio",
+      "command": "bun",
+      "args": ["run", "/path/to/channel/server.ts"]
+    }
+  }
+}
 ```
 
-## Project Types
+Replace `/path/to/channel/server.ts` with the actual path to the `channel/server.ts` file from this repository.
 
-- **Product** - User-facing apps/services
-- **Personal Tool** - Scripts, automation, personal utilities
-- **Experiment** - Prototypes, learning projects, quick tests
-- **Design** - Creative coding, design systems, visual work
+### 3. Add a CLAUDE.md to your vault
 
-## Philosophy
+Create a `CLAUDE.md` file in your vault root with instructions for Claude. See [CLAUDE.md.example](CLAUDE.md.example) for a starting point.
 
-**Orchestrator, not implementer.** The portfolio manager:
-- Tracks status across projects (doesn't write code for them)
-- Reduces context switching overhead
-- Acts as forcing function toward completion
-- Builds tools for itself (skills, dashboards)
-- Maintains portfolio-level visibility
+### 4. Start Claude Code
 
-Individual projects have their own Claude Code sessions for implementation work.
+```bash
+cd /path/to/your/vault
+claude --dangerously-load-development-channels server:inline-claude
+```
 
-## Development
+Keep this terminal open. Claude Code is now listening for your questions.
 
-This repo contains:
-- Portfolio-level Claude Code configuration
-- Custom skills for portfolio management
-- Documentation of the system architecture
+### 5. Enable the plugin
 
-Issues track development of new portfolio management features and tools.
+In Obsidian: Settings → Community plugins → enable **Inline Claude**.
+
+Type `;;` in any note and ask away.
+
+## Settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Trigger phrase | `;;` | The text that opens the question dropdown |
+| Channel port | `4321` | Port the channel server listens on |
+| Polling timeout | `30000` | Max milliseconds to wait for a response |
+
+## How it works (technical)
+
+```
+Obsidian Plugin                Channel Server              Claude Code
+     |                              |                          |
+     |-- POST /prompt ------------->|                          |
+     |   {filename, line, query}    |-- MCP notification ----->|
+     |                              |   <channel>              |
+     |                              |                          |-- reads file
+     |                              |                          |-- sees context
+     |                              |<-- reply tool -----------|
+     |                              |   {request_id, text}     |
+     |<-- GET /poll/:id ------------|                          |
+     |   {status, response}         |                          |
+     |                              |                          |
+     v                              v                          v
+  Replaces placeholder
+  with response callout
+```
+
+The plugin and channel server communicate over HTTP. The channel server and Claude Code communicate over MCP (stdio). Claude Code has the `claude/channel` capability, which lets it receive push notifications from the channel server.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+## Support
+
+If you find this useful, consider [sponsoring the project](https://github.com/sponsors/bawakul) or [buying me a coffee](https://ko-fi.com/bawakul).
