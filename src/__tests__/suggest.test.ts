@@ -215,7 +215,7 @@ describe("selectSuggestion wiring", () => {
 		// Check that replaceRange was called with response content
 		const replaceCalls = editor.replaceRange.mock.calls;
 		const lastCall = replaceCalls[replaceCalls.length - 1];
-		expect(lastCall[0]).toContain("> [!claude]+");
+		expect(lastCall[0]).toContain("> [!claude-done]+");
 		expect(lastCall[0]).toContain("Markdown is a markup language.");
 	});
 

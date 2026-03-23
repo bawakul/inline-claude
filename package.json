@@ -1,5 +1,5 @@
 {
-	"name": "obsidian-claude-chat",
+	"name": "inline-claude",
 	"version": "0.1.0",
 	"description": "Chat with Claude directly from your Obsidian notes using an inline trigger.",
 	"main": "main.js",

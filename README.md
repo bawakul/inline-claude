@@ -55,9 +55,23 @@ Create a `.mcp.json` file in your vault root:
 
 Replace `/path/to/channel/server.ts` with the actual path to the `channel/server.ts` file from this repository.
 
-### 3. Add a CLAUDE.md to your vault
+### 3. Add Claude instructions
 
-Create a `CLAUDE.md` file in your vault root with instructions for Claude. See [CLAUDE.md.example](CLAUDE.md.example) for a starting point.
+The plugin needs Claude Code to know how to handle channel events.
+
+**If you don't have a `CLAUDE.md` in your vault:**
+
+Copy `CLAUDE.md.example` from this repo to your vault root and rename it to `CLAUDE.md`.
+
+**If you already have a `CLAUDE.md`:**
+
+Add this line anywhere in your existing file:
+
+```
+@.obsidian/plugins/inline-claude/CLAUDE.md
+```
+
+Then copy `CLAUDE.md.example` from this repo to `.obsidian/plugins/inline-claude/CLAUDE.md`.
 
 ### 4. Start Claude Code
 

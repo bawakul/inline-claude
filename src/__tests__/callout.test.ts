@@ -60,20 +60,20 @@ describe("buildResponseCallout", () => {
 	it("formats single-line response", () => {
 		const result = buildResponseCallout("What is X?", "X is a thing.");
 		expect(result).toBe(
-			"> [!claude]+\n> **Q:** What is X?\n>\n> X is a thing."
+			"> [!claude-done]+ What is X?\n> **Claude:** X is a thing."
 		);
 	});
 
 	it("formats multi-line response", () => {
 		const result = buildResponseCallout("Tell me", "Line 1\nLine 2\nLine 3");
 		expect(result).toBe(
-			"> [!claude]+\n> **Q:** Tell me\n>\n> Line 1\n> Line 2\n> Line 3"
+			"> [!claude-done]+ Tell me\n> **Claude:** Line 1\n> Line 2\n> Line 3"
 		);
 	});
 
 	it("handles empty response", () => {
 		const result = buildResponseCallout("Hello?", "");
-		expect(result).toBe("> [!claude]+\n> **Q:** Hello?\n>");
+		expect(result).toBe("> [!claude-done]+ Hello?\n> **Claude:** ");
 	});
 });
 

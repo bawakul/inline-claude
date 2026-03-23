@@ -1,5 +1,7 @@
-import { App, PluginSettingTab, Setting } from "obsidian";
+import { App, PluginSettingTab, Setting, Notice } from "obsidian";
 import type ClaudeChatPlugin from "./main";
+import { spawn, execSync } from "child_process";
+import * as path from "path";
 
 export interface ClaudeChatSettings {
 	triggerPhrase: string;
@@ -13,6 +15,45 @@ export const DEFAULT_SETTINGS: ClaudeChatSettings = {
 	pollingTimeoutMs: 30000,
 };
 
+/**
+ * Try to find the claude binary. Checks common install locations.
+ */
+function findClaudeBinary(): string | null {
+	const candidates = [
+		"claude", // on PATH
+	];
+
+	// Try each candidate
+	for (const candidate of candidates) {
+		try {
+			const resolved = execSync(`which ${candidate}`, { encoding: "utf-8" }).trim();
+			if (resolved) return resolved;
+		} catch {
+			// not found, try next
+		}
+	}
+
+	// Check common install paths directly
+	const homedir = process.env.HOME || process.env.USERPROFILE || "";
+	const directPaths = [
+		path.join(homedir, ".local", "bin", "claude"),
+		path.join(homedir, ".claude", "bin", "claude"),
+		"/usr/local/bin/claude",
+		"/opt/homebrew/bin/claude",
+	];
+
+	for (const p of directPaths) {
+		try {
+			const fs = require("fs");
+			if (fs.existsSync(p)) return p;
+		} catch {
+			// skip
+		}
+	}
+
+	return null;
+}
+
 export class ClaudeChatSettingTab extends PluginSettingTab {
 	plugin: ClaudeChatPlugin;
 
@@ -25,6 +66,47 @@ export class ClaudeChatSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 
+		// --- Connection Status ---
+		const statusEl = containerEl.createEl("div", { cls: "inline-claude-status" });
+		this.renderStatus(statusEl);
+
+		// --- Start Claude Code ---
+		new Setting(containerEl)
+			.setName("Start Claude Code")
+			.setDesc(
+				"Opens a terminal and launches Claude Code with the channel server connected."
+			)
+			.addButton((btn) =>
+				btn
+					.setButtonText("Start")
+					.setCta()
+					.onClick(() => {
+						this.startClaudeCode();
+					})
+			);
+
+		// --- Copy command ---
+		new Setting(containerEl)
+			.setName("Manual start command")
+			.setDesc(
+				"Copy the full command to run Claude Code from your vault directory."
+			)
+			.addButton((btn) =>
+				btn
+					.setButtonText("Copy command")
+					.onClick(() => {
+						const vaultPath = this.getVaultPath();
+						const cmd = vaultPath
+							? `cd "${vaultPath}" && claude --dangerously-load-development-channels server:inline-claude`
+							: "claude --dangerously-load-development-channels server:inline-claude";
+						navigator.clipboard.writeText(cmd);
+						new Notice("Command copied to clipboard");
+					})
+			);
+
+		containerEl.createEl("hr");
+
+		// --- Settings ---
 		new Setting(containerEl)
 			.setName("Trigger phrase")
 			.setDesc(
@@ -75,5 +157,64 @@ export class ClaudeChatSettingTab extends PluginSettingTab {
 						}
 					})
 			);
+	}
+
+	private renderStatus(el: HTMLElement): void {
+		el.empty();
+		const healthy = this.plugin.channelHealthy;
+		const dot = healthy ? "🟢" : "⚫";
+		const text = healthy ? "Connected to Claude Code" : "Not connected";
+		el.createEl("p", {
+			text: `${dot} ${text}`,
+			cls: "inline-claude-status-text",
+		});
+		if (!healthy) {
+			el.createEl("p", {
+				text: "Start Claude Code below, or run the command manually in a terminal.",
+				cls: "setting-item-description",
+			});
+		}
+	}
+
+	private startClaudeCode(): void {
+		const claudePath = findClaudeBinary();
+		if (!claudePath) {
+			new Notice("Could not find 'claude' binary. Is Claude Code installed?");
+			return;
+		}
+
+		const vaultPath = this.getVaultPath();
+		if (!vaultPath) {
+			new Notice("Could not determine vault path");
+			return;
+		}
+
+		try {
+			const cmd = `cd '${vaultPath}' && '${claudePath}' --dangerously-load-development-channels server:inline-claude`;
+
+			// Use open(1) to launch Terminal.app — doesn't require Automation permission
+			// Write command to a temp script that keeps the shell alive
+			const fs = require("fs");
+			const os = require("os");
+			const tmpSh = path.join(os.tmpdir(), "inline-claude-start.command");
+			fs.writeFileSync(tmpSh, `#!/bin/sh\n${cmd}\nexec $SHELL\n`, { mode: 0o755 });
+
+			// .command files open in Terminal.app by default on macOS
+			execSync(`open "${tmpSh}"`);
+
+			new Notice("Opening Terminal with Claude Code...");
+			console.log("Inline Claude: opened Terminal.app via .command file");
+		} catch (err) {
+			console.log(`Inline Claude: failed to open terminal: ${err}`);
+			new Notice(`Failed to open terminal: ${err}`);
+		}
+	}
+
+	private getVaultPath(): string | null {
+		const adapter = this.plugin.app.vault.adapter;
+		if ("getBasePath" in adapter && typeof adapter.getBasePath === "function") {
+			return adapter.getBasePath();
+		}
+		return null;
 	}
 }

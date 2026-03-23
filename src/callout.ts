@@ -32,17 +32,15 @@ export function insertCallout(
  * The `+` makes it collapsible in Obsidian.
  */
 export function buildResponseCallout(query: string, response: string): string {
-	const header = "> [!claude]+";
-	const queryLine = `> **Q:** ${query}`;
-	const separator = ">";
+	const header = `> [!claude-done]+ ${query}`;
 	if (response === "") {
-		return `${header}\n${queryLine}\n${separator}`;
+		return `${header}\n> **Claude:** `;
 	}
 	const responseLines = response
 		.split("\n")
-		.map((line) => `> ${line}`)
+		.map((line, i) => i === 0 ? `> **Claude:** ${line}` : `> ${line}`)
 		.join("\n");
-	return `${header}\n${queryLine}\n${separator}\n${responseLines}`;
+	return `${header}\n${responseLines}`;
 }
 
 /**

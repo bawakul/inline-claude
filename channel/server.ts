@@ -22,7 +22,7 @@ import { createRequest, storeReply, getStatus } from "./store.js";
 // ---------------------------------------------------------------------------
 
 const server = new Server(
-	{ name: "obsidian-chat", version: "0.1.0" },
+	{ name: "inline-claude", version: "0.1.0" },
 	{
 		capabilities: {
 			tools: {},
@@ -30,7 +30,7 @@ const server = new Server(
 		},
 		instructions: [
 			"You are connected to an Obsidian Chat channel.",
-			"When you receive a <channel source=\"obsidian-chat\"> event, it contains a user's question from an Obsidian note.",
+			"When you receive a <channel source=\"inline-claude\"> event, it contains a user's question from an Obsidian note.",
 			"The event meta includes: request_id (unique identifier), filename (the note file), and line (cursor position).",
 			"The event content is the user's question.",
 			"",
