@@ -45,7 +45,7 @@ export async function ensureSetup(plugin: ClaudeChatPlugin): Promise<void> {
 	await ensureRootClaudeMd(vaultPath);
 }
 
-const REPO = "bawakul/obsidian-claude-chat";
+const REPO = "bawakul/inline-claude";
 
 /**
  * Ensure channel.js exists in the plugin folder.
