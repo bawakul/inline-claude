@@ -1,4 +1,5 @@
 import type ClaudeChatPlugin from "./main";
+import { requestUrl, Notice } from "obsidian";
 import * as path from "path";
 import * as fs from "fs";
 
@@ -38,9 +39,52 @@ export async function ensureSetup(plugin: ClaudeChatPlugin): Promise<void> {
 		return;
 	}
 
+	await ensureChannelJs(plugin, vaultPath);
 	await ensureChannelClaudeMd(plugin);
 	await ensureMcpJson(vaultPath, plugin);
 	await ensureRootClaudeMd(vaultPath);
+}
+
+const REPO = "bawakul/obsidian-claude-chat";
+
+/**
+ * Ensure channel.js exists in the plugin folder.
+ * BRAT only downloads main.js, manifest.json, and styles.css.
+ * If channel.js is missing, download it from the GitHub release matching the current version.
+ */
+async function ensureChannelJs(plugin: ClaudeChatPlugin, vaultPath: string): Promise<void> {
+	const channelJsPath = path.join(
+		vaultPath,
+		".obsidian",
+		"plugins",
+		"inline-claude",
+		"channel.js"
+	);
+
+	if (fs.existsSync(channelJsPath)) {
+		return; // Already present (manual install or previous download)
+	}
+
+	const version = plugin.manifest.version;
+	const url = `https://github.com/${REPO}/releases/download/${version}/channel.js`;
+
+	console.log(`Inline Claude: channel.js not found, downloading from ${url}`);
+	new Notice("Inline Claude: downloading channel server...");
+
+	try {
+		const res = await requestUrl({ url, throw: false });
+		if (res.status === 200) {
+			fs.writeFileSync(channelJsPath, res.text);
+			console.log("Inline Claude: channel.js downloaded successfully");
+			new Notice("Inline Claude: channel server ready.");
+		} else {
+			console.log(`Inline Claude: failed to download channel.js (HTTP ${res.status})`);
+			new Notice("Inline Claude: could not download channel server. You may need to add channel.js manually.");
+		}
+	} catch (err) {
+		console.log(`Inline Claude: failed to download channel.js: ${err}`);
+		new Notice("Inline Claude: could not download channel server. Check your internet connection.");
+	}
 }
 
 function getVaultPath(plugin: ClaudeChatPlugin): string | null {
