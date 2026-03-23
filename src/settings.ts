@@ -74,14 +74,27 @@ export class ClaudeChatSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Start Claude Code")
 			.setDesc(
-				"Opens a terminal and launches Claude Code with the channel server connected."
+				"Opens a terminal and launches Claude Code with the channel server connected. Claude will ask for permission before running tools."
 			)
 			.addButton((btn) =>
 				btn
-					.setButtonText("Start")
+					.setButtonText("Start (safe mode)")
 					.setCta()
 					.onClick(() => {
-						this.startClaudeCode();
+						this.startClaudeCode(false);
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Start Claude Code (auto-approve)")
+			.setDesc(
+				"Same as above, but Claude won't ask for permission before running tools. Faster responses, but use at your own discretion."
+			)
+			.addButton((btn) =>
+				btn
+					.setButtonText("Start (auto-approve)")
+					.onClick(() => {
+						this.startClaudeCode(true);
 					})
 			);
 
@@ -179,7 +192,7 @@ export class ClaudeChatSettingTab extends PluginSettingTab {
 		}
 	}
 
-	private startClaudeCode(): void {
+	private startClaudeCode(skipPermissions: boolean): void {
 		const claudePath = findClaudeBinary();
 		if (!claudePath) {
 			new Notice("Could not find 'claude' binary. Is Claude Code installed?");
@@ -193,7 +206,8 @@ export class ClaudeChatSettingTab extends PluginSettingTab {
 		}
 
 		try {
-			const cmd = `cd '${vaultPath}' && '${claudePath}' --dangerously-load-development-channels server:inline-claude`;
+			const skipFlag = skipPermissions ? " --dangerously-skip-permissions" : "";
+			const cmd = `cd '${vaultPath}' && '${claudePath}' --dangerously-load-development-channels server:inline-claude${skipFlag}`;
 
 			// Use open(1) to launch Terminal.app — doesn't require Automation permission
 			// Write command to a temp script that keeps the shell alive
