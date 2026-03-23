@@ -74,7 +74,7 @@ export class ClaudeChatSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Start Claude Code")
 			.setDesc(
-				"Opens a terminal and launches Claude Code with the channel server connected. Claude will ask for permission before running tools."
+				"Opens a terminal and launches Claude Code with the channel server connected. Claude will ask for permission before running tools. You'll need to confirm in the terminal."
 			)
 			.addButton((btn) =>
 				btn
@@ -88,7 +88,7 @@ export class ClaudeChatSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Start Claude Code (auto-approve)")
 			.setDesc(
-				"Same as above, but Claude won't ask for permission before running tools. Faster responses, but use at your own discretion."
+				"Starts Claude Code with --dangerously-skip-permissions — Claude will not ask before reading, writing, or running commands. Faster, but it has full access to your filesystem. A terminal will open and you'll need to confirm."
 			)
 			.addButton((btn) =>
 				btn
