@@ -16,6 +16,7 @@ export default class ClaudeChatPlugin extends Plugin {
 	channelHealthy: boolean = false;
 	private healthInterval: number | null = null;
 	statusBarEl: HTMLElement | null = null;
+	onHealthChange: (() => void) | null = null;
 
 	async onload() {
 		await this.loadSettings();
@@ -88,6 +89,7 @@ export default class ClaudeChatPlugin extends Plugin {
 			this.channelHealthy = false;
 		}
 		this.updateStatusBar();
+		this.onHealthChange?.();
 	}
 
 	updateStatusBar(): void {

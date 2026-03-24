@@ -2,6 +2,7 @@ import { App, PluginSettingTab, Setting, Notice } from "obsidian";
 import type ClaudeChatPlugin from "./main";
 import { spawn, execSync } from "child_process";
 import * as path from "path";
+import { findBunBinary } from "./setup";
 
 export interface ClaudeChatSettings {
 	triggerPhrase: string;
@@ -56,6 +57,7 @@ function findClaudeBinary(): string | null {
 
 export class ClaudeChatSettingTab extends PluginSettingTab {
 	plugin: ClaudeChatPlugin;
+	private statusEl: HTMLElement | null = null;
 
 	constructor(app: App, plugin: ClaudeChatPlugin) {
 		super(app, plugin);
@@ -67,8 +69,13 @@ export class ClaudeChatSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		// --- Connection Status ---
-		const statusEl = containerEl.createEl("div", { cls: "inline-claude-status" });
-		this.renderStatus(statusEl);
+		this.statusEl = containerEl.createEl("div", { cls: "inline-claude-status" });
+		this.renderStatus(this.statusEl);
+
+		// Register health change callback for live status updates
+		this.plugin.onHealthChange = () => {
+			if (this.statusEl) this.renderStatus(this.statusEl);
+		};
 
 		// --- Start Claude Code ---
 		new Setting(containerEl)
@@ -175,6 +182,11 @@ export class ClaudeChatSettingTab extends PluginSettingTab {
 			);
 	}
 
+	hide(): void {
+		this.plugin.onHealthChange = null;
+		this.statusEl = null;
+	}
+
 	private renderStatus(el: HTMLElement): void {
 		el.empty();
 		const healthy = this.plugin.channelHealthy;
@@ -188,6 +200,13 @@ export class ClaudeChatSettingTab extends PluginSettingTab {
 			el.createEl("p", {
 				text: "Start Claude Code below, or run the command manually in a terminal.",
 				cls: "setting-item-description",
+			});
+		}
+		// Warn if Bun is not installed — the channel server requires it
+		if (!findBunBinary()) {
+			el.createEl("p", {
+				text: "⚠️ Bun is not installed. The channel server requires Bun. Install from https://bun.sh",
+				cls: "setting-item-description mod-warning",
 			});
 		}
 	}
