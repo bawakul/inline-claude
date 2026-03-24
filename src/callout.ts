@@ -1,6 +1,13 @@
 import type { Editor, EditorPosition } from "obsidian";
 
 /**
+ * Constant retry prompt sent as the follow-up question when a request times out.
+ * Used by both the retry callout builder and the actual sendPrompt() call.
+ */
+export const RETRY_PROMPT =
+	"The previous question timed out. Please respond to the original question above.";
+
+/**
  * Build a callout block from user content.
  * Multi-line content gets each line prefixed with `> `.
  * Empty content returns just the header.
@@ -219,4 +226,33 @@ export function replaceCalloutBlock(
 		ch: editor.getLine(to).length,
 	};
 	editor.replaceRange(newContent, fromPos, toPos);
+}
+
+/**
+ * Build a "Timed out" callout that replaces the original "Thinking..." callout
+ * when the response timeout fires.
+ *
+ * Format:
+ * > [!claude] ⏱ Timed out
+ * > {query — each line prefixed with > }
+ * > Waited {elapsed}. Retrying automatically...
+ */
+export function buildTimeoutCallout(query: string, elapsedMs: number): string {
+	const header = "> [!claude] ⏱ Timed out";
+	const queryLines = query.split("\n").map((line) => `> ${line}`).join("\n");
+	const footer = `> Waited ${formatElapsed(elapsedMs)}. Retrying automatically...`;
+	return `${header}\n${queryLines}\n${footer}`;
+}
+
+/**
+ * Build the "Thinking..." callout for a retry attempt after a timeout.
+ * Uses `RETRY_PROMPT` as the body text — no query parameter needed.
+ *
+ * Format:
+ * > [!claude] Thinking...
+ * > (Retry) The previous question timed out. Please respond to the original question above.
+ */
+export function buildRetryThinkingCallout(): string {
+	const header = "> [!claude] Thinking...";
+	return `${header}\n> (Retry) ${RETRY_PROMPT}`;
 }

@@ -10,6 +10,9 @@ import {
 	replaceCalloutBlock,
 	formatElapsed,
 	buildThinkingBody,
+	RETRY_PROMPT,
+	buildTimeoutCallout,
+	buildRetryThinkingCallout,
 } from "../callout";
 
 describe("buildCalloutText", () => {
@@ -437,5 +440,64 @@ describe("buildThinkingBody", () => {
 		expect(buildThinkingBody(query, 10000)).toBe(
 			"> [!claude] Thinking...\n> line one\n> line two\n> ⏱ 10s"
 		);
+	});
+});
+
+describe("RETRY_PROMPT", () => {
+	it("is a non-empty string", () => {
+		expect(typeof RETRY_PROMPT).toBe("string");
+		expect(RETRY_PROMPT.length).toBeGreaterThan(0);
+	});
+
+	it("contains expected key phrases", () => {
+		expect(RETRY_PROMPT).toContain("timed out");
+		expect(RETRY_PROMPT).toContain("respond");
+	});
+});
+
+describe("buildTimeoutCallout", () => {
+	it("formats single-line query with correct elapsed time (300s → 5m 0s)", () => {
+		const result = buildTimeoutCallout("What is markdown?", 300000);
+		expect(result).toBe(
+			"> [!claude] ⏱ Timed out\n> What is markdown?\n> Waited 5m 0s. Retrying automatically..."
+		);
+	});
+
+	it("handles multi-line query — each line is prefixed with >", () => {
+		const result = buildTimeoutCallout("Multi\nline query", 120000);
+		expect(result).toBe(
+			"> [!claude] ⏱ Timed out\n> Multi\n> line query\n> Waited 2m 0s. Retrying automatically..."
+		);
+	});
+
+	it("formats sub-minute elapsed time", () => {
+		const result = buildTimeoutCallout("Quick q", 45000);
+		expect(result).toBe(
+			"> [!claude] ⏱ Timed out\n> Quick q\n> Waited 45s. Retrying automatically..."
+		);
+	});
+
+	it("handles empty query", () => {
+		const result = buildTimeoutCallout("", 60000);
+		expect(result).toBe(
+			"> [!claude] ⏱ Timed out\n> \n> Waited 1m 0s. Retrying automatically..."
+		);
+	});
+});
+
+describe("buildRetryThinkingCallout", () => {
+	it("produces correct format with retry prefix", () => {
+		const result = buildRetryThinkingCallout();
+		expect(result).toBe(
+			`> [!claude] Thinking...\n> (Retry) ${RETRY_PROMPT}`
+		);
+	});
+
+	it("starts with standard Thinking header", () => {
+		expect(buildRetryThinkingCallout()).toMatch(/^> \[!claude\] Thinking\.\.\./);
+	});
+
+	it("includes (Retry) marker in body", () => {
+		expect(buildRetryThinkingCallout()).toContain("> (Retry)");
 	});
 });
