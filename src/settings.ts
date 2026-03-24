@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting, Notice } from "obsidian";
+import { App, Modal, PluginSettingTab, Setting, Notice } from "obsidian";
 import type ClaudeChatPlugin from "./main";
 import { spawn, execSync } from "child_process";
 import * as path from "path";
@@ -55,6 +55,67 @@ function findClaudeBinary(): string | null {
 	return null;
 }
 
+/**
+ * Confirmation modal shown before launching Claude Code with --dangerously-skip-permissions.
+ * Forces the user to acknowledge what auto-approve means before proceeding.
+ */
+class AutoApproveConfirmModal extends Modal {
+	private onConfirm: () => void;
+
+	constructor(app: App, onConfirm: () => void) {
+		super(app);
+		this.onConfirm = onConfirm;
+	}
+
+	onOpen(): void {
+		const { contentEl } = this;
+		contentEl.empty();
+
+		contentEl.createEl("h2", { text: "Auto-approve mode" });
+
+		contentEl.createEl("p", {
+			text: "This starts Claude Code with --dangerously-skip-permissions. That means:",
+		});
+
+		const list = contentEl.createEl("ul");
+		list.createEl("li", {
+			text: "Claude can read and write any file on your filesystem — not just your vault",
+		});
+		list.createEl("li", {
+			text: "Claude can execute shell commands without asking",
+		});
+		list.createEl("li", {
+			text: "Claude can install packages, modify system files, and make network requests",
+		});
+		list.createEl("li", {
+			text: "None of these actions will require your confirmation",
+		});
+
+		contentEl.createEl("p", {
+			text: "Safe mode is recommended unless you have a specific reason to skip permissions.",
+			cls: "mod-warning",
+		});
+
+		const buttonContainer = contentEl.createDiv({ cls: "modal-button-container" });
+
+		const cancelBtn = buttonContainer.createEl("button", { text: "Cancel" });
+		cancelBtn.addEventListener("click", () => this.close());
+
+		const confirmBtn = buttonContainer.createEl("button", {
+			text: "I understand, start auto-approve",
+			cls: "mod-warning",
+		});
+		confirmBtn.addEventListener("click", () => {
+			this.close();
+			this.onConfirm();
+		});
+	}
+
+	onClose(): void {
+		this.contentEl.empty();
+	}
+}
+
 export class ClaudeChatSettingTab extends PluginSettingTab {
 	plugin: ClaudeChatPlugin;
 	private statusEl: HTMLElement | null = null;
@@ -95,13 +156,15 @@ export class ClaudeChatSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Start Claude Code (auto-approve)")
 			.setDesc(
-				"Starts Claude Code with --dangerously-skip-permissions — Claude will not ask before reading, writing, or running commands. Faster, but it has full access to your filesystem. A terminal will open and you'll need to confirm."
+				"Starts Claude Code with --dangerously-skip-permissions — Claude will not ask before reading, writing, or running commands. Faster, but it has full access to your filesystem."
 			)
 			.addButton((btn) =>
 				btn
 					.setButtonText("Start (auto-approve)")
 					.onClick(() => {
-						this.startClaudeCode(true);
+						new AutoApproveConfirmModal(this.app, () => {
+							this.startClaudeCode(true);
+						}).open();
 					})
 			);
 

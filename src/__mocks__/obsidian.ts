@@ -127,6 +127,37 @@ export class EditorSuggest<T> {
 	selectSuggestion(_value: T, _evt: MouseEvent | KeyboardEvent): void {}
 }
 
+export class Modal {
+	app: App;
+	containerEl: HTMLElement;
+	modalEl: HTMLElement;
+	titleEl: HTMLElement;
+	contentEl: HTMLElement;
+	constructor(app: App) {
+		this.app = app;
+		this.containerEl = {} as HTMLElement;
+		this.modalEl = {} as HTMLElement;
+		this.titleEl = {} as HTMLElement;
+		this.contentEl = {
+			empty: () => {},
+			createEl: (_tag: string, _attrs?: any) => ({
+				createEl: (_t: string, _a?: any) => ({}),
+				setText: (_text: string) => {},
+				addEventListener: (_event: string, _cb: () => void) => {},
+			}),
+			createDiv: (_attrs?: any) => ({
+				createEl: (_tag: string, _attrs?: any) => ({
+					addEventListener: (_event: string, _cb: () => void) => {},
+				}),
+			}),
+		} as any;
+	}
+	open(): void {}
+	close(): void {}
+	onOpen(): void {}
+	onClose(): void {}
+}
+
 export class PluginSettingTab {
 	app: App;
 	plugin: any;
