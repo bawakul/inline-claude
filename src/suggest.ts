@@ -7,7 +7,7 @@ import {
 	TFile,
 } from "obsidian";
 import type ClaudeChatPlugin from "./main";
-import { insertCallout, findCalloutRange, replaceCalloutBlock, buildResponseCallout, buildErrorCallout } from "./callout";
+import { insertCallout, findCalloutRange, findCalloutBlock, replaceCalloutBlock, buildResponseCallout, buildErrorCallout } from "./callout";
 import { sendPrompt, pollReply } from "./channel-client";
 
 /**
@@ -116,6 +116,19 @@ export class ClaudeSuggest extends EditorSuggest<string> {
 
 			const requestId = sendResult.request_id;
 			console.log(`Prompt sent, request_id: ${requestId}`);
+
+			// Patch the rid into the just-inserted callout header
+			const patchRange = findCalloutRange(editor, nearLine);
+			if (patchRange) {
+				const headerLine = editor.getLine(patchRange.from);
+				const patchedHeader = headerLine + ` <!-- rid:${requestId} -->`;
+				editor.replaceRange(
+					patchedHeader,
+					{ line: patchRange.from, ch: 0 },
+					{ line: patchRange.from, ch: headerLine.length }
+				);
+			}
+
 			const startTime = Date.now();
 
 			const intervalId = setInterval(async () => {
@@ -130,7 +143,7 @@ export class ClaudeSuggest extends EditorSuggest<string> {
 				const elapsed = Date.now() - startTime;
 				if (elapsed > timeoutMs) {
 					console.log(`Poll timeout for ${requestId} after ${elapsed}ms`);
-					const range = findCalloutRange(editor, nearLine);
+					const range = findCalloutBlock(editor, requestId, nearLine);
 					if (range) {
 						replaceCalloutBlock(editor, range.from, range.to, buildErrorCallout(value, "Timed out waiting for Claude's response. Check the terminal — Claude Code may need your input."));
 					}
@@ -142,7 +155,7 @@ export class ClaudeSuggest extends EditorSuggest<string> {
 
 				if (!pollResult.ok) {
 					console.log(`Poll error for ${requestId}: ${pollResult.error}`);
-					const range = findCalloutRange(editor, nearLine);
+					const range = findCalloutBlock(editor, requestId, nearLine);
 					if (range) {
 						replaceCalloutBlock(editor, range.from, range.to, buildErrorCallout(value, pollResult.error));
 					}
@@ -152,7 +165,7 @@ export class ClaudeSuggest extends EditorSuggest<string> {
 
 				if (pollResult.status === "complete") {
 					console.log(`Poll complete for ${requestId}`);
-					const range = findCalloutRange(editor, nearLine);
+					const range = findCalloutBlock(editor, requestId, nearLine);
 					if (range) {
 						replaceCalloutBlock(editor, range.from, range.to, buildResponseCallout(value, pollResult.response));
 					}

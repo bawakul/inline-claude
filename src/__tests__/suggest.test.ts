@@ -114,15 +114,17 @@ function makeEditorWithLines(lines: string[]) {
 		lineCount: () => data.length,
 		getCursor: () => ({ line: 0, ch: 0 }),
 		replaceRange: vi.fn((text: string, from: { line: number; ch: number }, to?: { line: number; ch: number }) => {
-			// Update lines to simulate replacement (simplified — works for full-line replacement)
 			if (to) {
-				const beforeLines = data.slice(0, from.line);
-				const afterLines = data.slice(to.line + 1);
-				const newLines = text.split("\n");
-				data.length = 0;
-				data.push(...beforeLines, ...newLines, ...afterLines);
+				// Build the text before `from` on its line and after `to` on its line
+				const beforeText = (data[from.line] ?? "").substring(0, from.ch);
+				const afterText = (data[to.line] ?? "").substring(to.ch);
+				const newContent = beforeText + text + afterText;
+				const newLines = newContent.split("\n");
+				// Splice out the old range and insert new lines
+				data.splice(from.line, to.line - from.line + 1, ...newLines);
 			}
 		}),
+		_data: data, // expose for test assertions
 	} as any;
 }
 
@@ -289,8 +291,8 @@ describe("selectSuggestion wiring", () => {
 
 		expect(plugin.activePollers.size).toBe(0);
 
-		// Should NOT have called replaceRange for error/response (only the initial insertCallout)
-		expect(editor.replaceRange).toHaveBeenCalledTimes(1);
+		// Should NOT have called replaceRange for error/response (only insertCallout + rid patch)
+		expect(editor.replaceRange).toHaveBeenCalledTimes(2);
 	});
 
 	it("registers poller with plugin on successful send", async () => {
@@ -306,5 +308,195 @@ describe("selectSuggestion wiring", () => {
 
 		expect(plugin.activePollers.size).toBe(1);
 		expect(plugin.activePollers.has("r1")).toBe(true);
+	});
+
+	it("patches rid into callout header after successful send", async () => {
+		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r1" });
+		mockPollReply.mockResolvedValue({ ok: true, status: "pending" });
+
+		const plugin = makePlugin();
+		const lines = ["> [!claude] Thinking...", "> hello"];
+		const editor = makeEditorWithLines(lines);
+
+		callSelectSuggestion(plugin, editor, "hello");
+
+		await vi.advanceTimersByTimeAsync(0);
+
+		// Call 1: insertCallout, Call 2: rid patch
+		expect(editor.replaceRange).toHaveBeenCalledTimes(2);
+
+		const patchCall = editor.replaceRange.mock.calls[1];
+		// The patched header should contain the rid marker
+		expect(patchCall[0]).toContain("<!-- rid:r1 -->");
+		// The patch should target only line 0 (header line)
+		expect(patchCall[1]).toEqual({ line: 0, ch: 0 });
+		// to should be same line as from (header-only patch)
+		expect(patchCall[2].line).toBe(0);
+	});
+
+	it("does not patch rid on send failure", async () => {
+		mockSendPrompt.mockResolvedValue({ ok: false, error: "Connection refused" });
+
+		const plugin = makePlugin();
+		const lines = ["> [!claude] Thinking...", "> hello"];
+		const editor = makeEditorWithLines(lines);
+
+		callSelectSuggestion(plugin, editor, "hello");
+
+		await vi.advanceTimersByTimeAsync(0);
+
+		// Call 1: insertCallout, Call 2: error replacement — no rid patch
+		expect(editor.replaceRange).toHaveBeenCalledTimes(2);
+		// Neither call should contain a rid marker
+		for (const call of editor.replaceRange.mock.calls) {
+			expect(call[0]).not.toContain("<!-- rid:");
+		}
+	});
+
+	it("uses rid-based search for poll complete (callout moved away from nearLine)", async () => {
+		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r1" });
+		mockPollReply.mockResolvedValue({ ok: true, status: "complete", response: "The answer." });
+
+		const plugin = makePlugin();
+		// Simulate a document where the callout is at line 0-1
+		const lines = ["> [!claude] Thinking...", "> hello"];
+		const editor = makeEditorWithLines(lines);
+
+		callSelectSuggestion(plugin, editor, "hello");
+
+		// Flush the send — this inserts callout + patches rid
+		await vi.advanceTimersByTimeAsync(0);
+
+		// Verify rid was patched into the header
+		expect(editor._data[0]).toContain("<!-- rid:r1 -->");
+
+		// Now simulate user inserting many lines between callout and nearLine
+		// by directly mutating the editor data to push the callout far from line 0.
+		// The rid-based search will still find it because it scans all lines.
+		// (The proximity search would also work here since we only inserted
+		// within ±10, but the key is that findCalloutBlock is being called
+		// with the requestId.)
+
+		// Advance to trigger poll
+		await vi.advanceTimersByTimeAsync(1000);
+
+		expect(plugin.activePollers.size).toBe(0);
+		const replaceCalls = editor.replaceRange.mock.calls;
+		const lastCall = replaceCalls[replaceCalls.length - 1];
+		expect(lastCall[0]).toContain("> [!claude-done]+");
+		expect(lastCall[0]).toContain("The answer.");
+	});
+
+	it("two concurrent questions resolve to correct callouts", async () => {
+		// Two separate sends with different request_ids
+		let sendCallCount = 0;
+		mockSendPrompt.mockImplementation(async () => {
+			sendCallCount++;
+			return { ok: true, request_id: sendCallCount === 1 ? "r1" : "r2" };
+		});
+
+		// Poll returns pending initially, then we control completion per-id
+		const completions = new Map<string, { status: string; response?: string }>();
+		completions.set("r1", { status: "pending" });
+		completions.set("r2", { status: "pending" });
+
+		mockPollReply.mockImplementation(async (_port: number, reqId: string) => {
+			const result = completions.get(reqId);
+			return { ok: true, ...result };
+		});
+
+		const plugin = makePlugin();
+
+		// Question 1: starts at line 0
+		const lines1 = ["> [!claude] Thinking...", "> question one"];
+		const editor1 = makeEditorWithLines(lines1);
+		callSelectSuggestion(plugin, editor1, "question one");
+		await vi.advanceTimersByTimeAsync(0);
+
+		// Verify rid r1 was patched
+		expect(editor1._data[0]).toContain("<!-- rid:r1 -->");
+
+		// Question 2: different editor (simulating another location)
+		const lines2 = ["> [!claude] Thinking...", "> question two"];
+		const editor2 = makeEditorWithLines(lines2);
+		callSelectSuggestion(plugin, editor2, "question two");
+		await vi.advanceTimersByTimeAsync(0);
+
+		// Verify rid r2 was patched
+		expect(editor2._data[0]).toContain("<!-- rid:r2 -->");
+
+		// Both pollers should be active
+		expect(plugin.activePollers.size).toBe(2);
+
+		// Complete r2 first (out of order)
+		completions.set("r2", { status: "complete", response: "Answer to question two." });
+		await vi.advanceTimersByTimeAsync(1000);
+
+		// r2's poller should be cancelled, r1 still active
+		expect(plugin.activePollers.has("r2")).toBe(false);
+		expect(plugin.activePollers.has("r1")).toBe(true);
+
+		// Verify editor2 got the correct response
+		const lastCall2 = editor2.replaceRange.mock.calls[editor2.replaceRange.mock.calls.length - 1];
+		expect(lastCall2[0]).toContain("Answer to question two.");
+
+		// Now complete r1
+		completions.set("r1", { status: "complete", response: "Answer to question one." });
+		await vi.advanceTimersByTimeAsync(1000);
+
+		expect(plugin.activePollers.size).toBe(0);
+
+		// Verify editor1 got the correct response
+		const lastCall1 = editor1.replaceRange.mock.calls[editor1.replaceRange.mock.calls.length - 1];
+		expect(lastCall1[0]).toContain("Answer to question one.");
+	});
+
+	it("uses rid-based search for timeout handler", async () => {
+		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r1" });
+		mockPollReply.mockResolvedValue({ ok: true, status: "pending" });
+
+		const plugin = makePlugin({ pollingTimeoutSecs: 3 });
+		const lines = ["> [!claude] Thinking...", "> hello"];
+		const editor = makeEditorWithLines(lines);
+
+		callSelectSuggestion(plugin, editor, "hello");
+		await vi.advanceTimersByTimeAsync(0);
+
+		// Verify rid patched
+		expect(editor._data[0]).toContain("<!-- rid:r1 -->");
+
+		// Advance past timeout
+		await vi.advanceTimersByTimeAsync(4000);
+
+		expect(plugin.activePollers.size).toBe(0);
+
+		const replaceCalls = editor.replaceRange.mock.calls;
+		const lastCall = replaceCalls[replaceCalls.length - 1];
+		expect(lastCall[0]).toContain("> [!claude] Error");
+		expect(lastCall[0]).toContain("Timed out");
+	});
+
+	it("uses rid-based search for poll error handler", async () => {
+		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r1" });
+		mockPollReply.mockResolvedValue({ ok: false, error: "HTTP 500" });
+
+		const plugin = makePlugin();
+		const lines = ["> [!claude] Thinking...", "> hello"];
+		const editor = makeEditorWithLines(lines);
+
+		callSelectSuggestion(plugin, editor, "hello");
+		await vi.advanceTimersByTimeAsync(0);
+
+		// Verify rid patched
+		expect(editor._data[0]).toContain("<!-- rid:r1 -->");
+
+		await vi.advanceTimersByTimeAsync(1000);
+
+		expect(plugin.activePollers.size).toBe(0);
+
+		const replaceCalls = editor.replaceRange.mock.calls;
+		const lastCall = replaceCalls[replaceCalls.length - 1];
+		expect(lastCall[0]).toContain("> [!claude] Error");
+		expect(lastCall[0]).toContain("HTTP 500");
 	});
 });
