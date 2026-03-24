@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import {
-	buildCalloutText,
+	buildCalloutHeader,
 	insertCallout,
 	buildResponseCallout,
 	buildErrorCallout,
@@ -8,58 +8,53 @@ import {
 	findCalloutRangeById,
 	findCalloutBlock,
 	replaceCalloutBlock,
+	formatElapsed,
 } from "../callout";
 
-describe("buildCalloutText", () => {
-	it("formats single-line content", () => {
-		expect(buildCalloutText("hello")).toBe(
-			"> [!claude] Thinking...\n> hello"
+describe("buildCalloutHeader", () => {
+	it("formats query as the callout title", () => {
+		expect(buildCalloutHeader("hello")).toBe(
+			"> [!claude] hello"
 		);
 	});
 
-	it("formats multi-line content with each line prefixed", () => {
-		expect(buildCalloutText("line1\nline2")).toBe(
-			"> [!claude] Thinking...\n> line1\n> line2"
+	it("handles multi-line query (flattened into title)", () => {
+		expect(buildCalloutHeader("line1\nline2")).toBe(
+			"> [!claude] line1\nline2"
 		);
 	});
 
-	it("returns just the header for empty content", () => {
-		expect(buildCalloutText("")).toBe("> [!claude] Thinking...");
+	it("handles empty query", () => {
+		expect(buildCalloutHeader("")).toBe("> [!claude] ");
 	});
 
 	it("handles content with leading/trailing whitespace", () => {
-		expect(buildCalloutText("  spaced  ")).toBe(
-			"> [!claude] Thinking...\n>   spaced  "
+		expect(buildCalloutHeader("  spaced  ")).toBe(
+			"> [!claude]   spaced  "
 		);
 	});
 
-	it("handles three lines", () => {
-		expect(buildCalloutText("a\nb\nc")).toBe(
-			"> [!claude] Thinking...\n> a\n> b\n> c"
+	it("embeds rid marker when requestId is provided", () => {
+		expect(buildCalloutHeader("hello", "some-uuid")).toBe(
+			"> [!claude] hello <!-- rid:some-uuid -->"
 		);
 	});
 
-	it("embeds rid marker in header when requestId is provided", () => {
-		expect(buildCalloutText("hello", "some-uuid")).toBe(
-			"> [!claude] Thinking... <!-- rid:some-uuid -->\n> hello"
-		);
-	});
-
-	it("embeds rid marker in header-only callout (empty content)", () => {
-		expect(buildCalloutText("", "abc-123")).toBe(
-			"> [!claude] Thinking... <!-- rid:abc-123 -->"
+	it("embeds rid marker with empty query", () => {
+		expect(buildCalloutHeader("", "abc-123")).toBe(
+			"> [!claude]  <!-- rid:abc-123 -->"
 		);
 	});
 
 	it("produces unchanged output when requestId is undefined", () => {
-		expect(buildCalloutText("content")).toBe(
-			"> [!claude] Thinking...\n> content"
+		expect(buildCalloutHeader("content")).toBe(
+			"> [!claude] content"
 		);
 	});
 });
 
 describe("insertCallout", () => {
-	it("calls editor.replaceRange with callout text", () => {
+	it("calls editor.replaceRange with callout header", () => {
 		const replaceRange = vi.fn();
 		const editor = { replaceRange } as any;
 		const from = { line: 0, ch: 0 };
@@ -69,7 +64,22 @@ describe("insertCallout", () => {
 
 		expect(replaceRange).toHaveBeenCalledOnce();
 		expect(replaceRange).toHaveBeenCalledWith(
-			"> [!claude] Thinking...\n> hello",
+			"> [!claude] hello",
+			from,
+			to
+		);
+	});
+
+	it("embeds rid when requestId is provided", () => {
+		const replaceRange = vi.fn();
+		const editor = { replaceRange } as any;
+		const from = { line: 0, ch: 0 };
+		const to = { line: 0, ch: 7 };
+
+		insertCallout(editor, from, to, "hello", "test-uuid");
+
+		expect(replaceRange).toHaveBeenCalledWith(
+			"> [!claude] hello <!-- rid:test-uuid -->",
 			from,
 			to
 		);
@@ -98,10 +108,10 @@ describe("buildResponseCallout", () => {
 });
 
 describe("buildErrorCallout", () => {
-	it("formats error message correctly", () => {
+	it("formats error with query as title", () => {
 		const result = buildErrorCallout("What is X?", "Connection refused");
 		expect(result).toBe(
-			"> [!claude] Error\n> **Q:** What is X?\n>\n> ⚠️ Connection refused"
+			"> [!claude] What is X?\n> ⚠️ Connection refused"
 		);
 	});
 });
@@ -372,3 +382,39 @@ describe("replaceCalloutBlock", () => {
 		);
 	});
 });
+
+describe("formatElapsed", () => {
+	it("formats 0ms as 0s", () => {
+		expect(formatElapsed(0)).toBe("0s");
+	});
+
+	it("formats 5000ms as 5s", () => {
+		expect(formatElapsed(5000)).toBe("5s");
+	});
+
+	it("formats 45000ms as 45s", () => {
+		expect(formatElapsed(45000)).toBe("45s");
+	});
+
+	it("rounds down to nearest second (59999ms → 59s)", () => {
+		expect(formatElapsed(59999)).toBe("59s");
+	});
+
+	it("formats 60000ms as 1m 0s", () => {
+		expect(formatElapsed(60000)).toBe("1m 0s");
+	});
+
+	it("formats 90000ms as 1m 30s", () => {
+		expect(formatElapsed(90000)).toBe("1m 30s");
+	});
+
+	it("formats 150000ms as 2m 30s", () => {
+		expect(formatElapsed(150000)).toBe("2m 30s");
+	});
+
+	it("formats 300000ms as 5m 0s", () => {
+		expect(formatElapsed(300000)).toBe("5m 0s");
+	});
+});
+
+

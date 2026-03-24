@@ -81,7 +81,7 @@ function createMockPlugin(overrides: Record<string, any> = {}): any {
 		settings: {
 			triggerPhrase: ";;",
 			channelPort: 4321,
-			pollingTimeoutSecs: 60,
+			pollingTimeoutSecs: 300,
 		},
 		channelHealthy: false,
 		onHealthChange: null,

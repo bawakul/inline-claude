@@ -13,7 +13,7 @@ export interface ClaudeChatSettings {
 export const DEFAULT_SETTINGS: ClaudeChatSettings = {
 	triggerPhrase: ";;",
 	channelPort: 4321,
-	pollingTimeoutSecs: 60,
+	pollingTimeoutSecs: 300,
 };
 
 /**
@@ -164,13 +164,13 @@ export class ClaudeChatSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Polling timeout (seconds)")
+			.setName("Response timeout (seconds)")
 			.setDesc(
-				"Max seconds to wait for a Claude response (default: 60)"
+				"How long to wait before auto-retrying (default: 300). At 2 minutes a warning appears. At this timeout the plugin retries automatically. If the retry fails after 2 more minutes, it gives up."
 			)
 			.addText((text) =>
 				text
-					.setPlaceholder("60")
+					.setPlaceholder("300")
 					.setValue(String(this.plugin.settings.pollingTimeoutSecs))
 					.onChange(async (value) => {
 						const parsed = parseInt(value, 10);

@@ -1,33 +1,28 @@
 import type { Editor, EditorPosition } from "obsidian";
 
 /**
- * Build a callout block from user content.
- * Multi-line content gets each line prefixed with `> `.
- * Empty content returns just the header.
+ * Build a single-line callout header with the user's prompt as the title.
+ * The prompt IS the title — no body lines are generated.
  * When requestId is provided, a `<!-- rid:UUID -->` marker is appended
  * to the header line for ID-based callout matching.
  */
-export function buildCalloutText(content: string, requestId?: string): string {
+export function buildCalloutHeader(query: string, requestId?: string): string {
 	const rid = requestId ? ` <!-- rid:${requestId} -->` : "";
-	const header = `> [!claude] Thinking...${rid}`;
-	if (content === "") {
-		return header;
-	}
-	const lines = content.split("\n");
-	const prefixed = lines.map((line) => `> ${line}`).join("\n");
-	return `${header}\n${prefixed}`;
+	return `> [!claude] ${query}${rid}`;
 }
 
 /**
- * Replace a range in the editor with a callout block.
+ * Replace a range in the editor with a callout header.
+ * When requestId is provided, it's embedded as a rid marker in the header.
  */
 export function insertCallout(
 	editor: Editor,
 	from: EditorPosition,
 	to: EditorPosition,
-	content: string
+	content: string,
+	requestId?: string
 ): void {
-	editor.replaceRange(buildCalloutText(content), from, to);
+	editor.replaceRange(buildCalloutHeader(content, requestId), from, to);
 }
 
 /**
@@ -47,14 +42,10 @@ export function buildResponseCallout(query: string, response: string): string {
 }
 
 /**
- * Build an error callout with the original query and error message.
+ * Build an error callout with the original query as title and error in body.
  */
 export function buildErrorCallout(query: string, errorMsg: string): string {
-	const header = "> [!claude] Error";
-	const queryLine = `> **Q:** ${query}`;
-	const separator = ">";
-	const errorLine = `> ⚠️ ${errorMsg}`;
-	return `${header}\n${queryLine}\n${separator}\n${errorLine}`;
+	return `> [!claude] ${query}\n> ⚠️ ${errorMsg}`;
 }
 
 /**
@@ -67,7 +58,7 @@ export function buildErrorCallout(query: string, errorMsg: string): string {
 export function findCalloutRange(
 	editor: Editor,
 	nearLine: number,
-	marker: string = "> [!claude] Thinking..."
+	marker: string = "> [!claude] "
 ): { from: number; to: number } | null {
 	const lineCount = editor.lineCount();
 	const searchStart = Math.max(0, nearLine - 10);
@@ -164,6 +155,22 @@ export function findCalloutBlock(
 }
 
 /**
+ * Format milliseconds as human-readable elapsed time.
+ * < 60s: "Ns" (e.g. "5s", "45s")
+ * ≥ 60s: "Nm Ns" (e.g. "1m 0s", "2m 30s")
+ * Always rounds down to the nearest second.
+ */
+export function formatElapsed(ms: number): string {
+	const totalSeconds = Math.floor(ms / 1000);
+	if (totalSeconds < 60) {
+		return `${totalSeconds}s`;
+	}
+	const minutes = Math.floor(totalSeconds / 60);
+	const seconds = totalSeconds % 60;
+	return `${minutes}m ${seconds}s`;
+}
+
+/**
  * Replace lines from..to (inclusive) with new content.
  */
 export function replaceCalloutBlock(
@@ -179,3 +186,5 @@ export function replaceCalloutBlock(
 	};
 	editor.replaceRange(newContent, fromPos, toPos);
 }
+
+
