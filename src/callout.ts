@@ -164,6 +164,47 @@ export function findCalloutBlock(
 }
 
 /**
+ * Format milliseconds as human-readable elapsed time.
+ * < 60s: "Ns" (e.g. "5s", "45s")
+ * ≥ 60s: "Nm Ns" (e.g. "1m 0s", "2m 30s")
+ * Always rounds down to the nearest second.
+ */
+export function formatElapsed(ms: number): string {
+	const totalSeconds = Math.floor(ms / 1000);
+	if (totalSeconds < 60) {
+		return `${totalSeconds}s`;
+	}
+	const minutes = Math.floor(totalSeconds / 60);
+	const seconds = totalSeconds % 60;
+	return `${minutes}m ${seconds}s`;
+}
+
+/**
+ * Build the full callout body for a "Thinking..." callout with optional
+ * elapsed time and warning text.
+ *
+ * - Always starts with `> [!claude] Thinking...\n> {query}`
+ * - If `elapsedMs` ≥ 5000: appends `\n> ⏱ {formatElapsed(elapsedMs)}`
+ * - If `warning` is true: the elapsed line includes a warning suffix
+ * - If `elapsedMs` is undefined or < 5000: no elapsed line
+ */
+export function buildThinkingBody(
+	query: string,
+	elapsedMs?: number,
+	warning?: boolean
+): string {
+	const base = buildCalloutText(query);
+	if (elapsedMs === undefined || elapsedMs < 5000) {
+		return base;
+	}
+	const elapsed = formatElapsed(elapsedMs);
+	const warningText = warning
+		? ` — Still waiting. Claude may need input in the terminal.`
+		: "";
+	return `${base}\n> ⏱ ${elapsed}${warningText}`;
+}
+
+/**
  * Replace lines from..to (inclusive) with new content.
  */
 export function replaceCalloutBlock(

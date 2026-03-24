@@ -8,6 +8,8 @@ import {
 	findCalloutRangeById,
 	findCalloutBlock,
 	replaceCalloutBlock,
+	formatElapsed,
+	buildThinkingBody,
 } from "../callout";
 
 describe("buildCalloutText", () => {
@@ -369,6 +371,71 @@ describe("replaceCalloutBlock", () => {
 			"replacement",
 			{ line: 0, ch: 0 },
 			{ line: 0, ch: 7 } // "> short".length === 7
+		);
+	});
+});
+
+describe("formatElapsed", () => {
+	it("formats 0ms as 0s", () => {
+		expect(formatElapsed(0)).toBe("0s");
+	});
+
+	it("formats 5000ms as 5s", () => {
+		expect(formatElapsed(5000)).toBe("5s");
+	});
+
+	it("formats 45000ms as 45s", () => {
+		expect(formatElapsed(45000)).toBe("45s");
+	});
+
+	it("rounds down to nearest second (59999ms → 59s)", () => {
+		expect(formatElapsed(59999)).toBe("59s");
+	});
+
+	it("formats 60000ms as 1m 0s", () => {
+		expect(formatElapsed(60000)).toBe("1m 0s");
+	});
+
+	it("formats 90000ms as 1m 30s", () => {
+		expect(formatElapsed(90000)).toBe("1m 30s");
+	});
+
+	it("formats 150000ms as 2m 30s", () => {
+		expect(formatElapsed(150000)).toBe("2m 30s");
+	});
+
+	it("formats 300000ms as 5m 0s", () => {
+		expect(formatElapsed(300000)).toBe("5m 0s");
+	});
+});
+
+describe("buildThinkingBody", () => {
+	it("returns same as buildCalloutText when no elapsed is provided", () => {
+		const query = "What is Obsidian?";
+		expect(buildThinkingBody(query)).toBe(buildCalloutText(query));
+	});
+
+	it("appends elapsed line when elapsedMs ≥ 5000", () => {
+		expect(buildThinkingBody("test query", 15000)).toBe(
+			"> [!claude] Thinking...\n> test query\n> ⏱ 15s"
+		);
+	});
+
+	it("appends elapsed line with warning text when warning is true", () => {
+		expect(buildThinkingBody("test query", 130000, true)).toBe(
+			"> [!claude] Thinking...\n> test query\n> ⏱ 2m 10s — Still waiting. Claude may need input in the terminal."
+		);
+	});
+
+	it("omits elapsed line when elapsedMs < 5000", () => {
+		const query = "short wait";
+		expect(buildThinkingBody(query, 3000)).toBe(buildCalloutText(query));
+	});
+
+	it("handles multi-line query with elapsed", () => {
+		const query = "line one\nline two";
+		expect(buildThinkingBody(query, 10000)).toBe(
+			"> [!claude] Thinking...\n> line one\n> line two\n> ⏱ 10s"
 		);
 	});
 });
