@@ -4,9 +4,12 @@ import type { Editor, EditorPosition } from "obsidian";
  * Build a callout block from user content.
  * Multi-line content gets each line prefixed with `> `.
  * Empty content returns just the header.
+ * When requestId is provided, a `<!-- rid:UUID -->` marker is appended
+ * to the header line for ID-based callout matching.
  */
-export function buildCalloutText(content: string): string {
-	const header = "> [!claude] Thinking...";
+export function buildCalloutText(content: string, requestId?: string): string {
+	const rid = requestId ? ` <!-- rid:${requestId} -->` : "";
+	const header = `> [!claude] Thinking...${rid}`;
 	if (content === "") {
 		return header;
 	}
@@ -96,6 +99,68 @@ export function findCalloutRange(
 	}
 
 	return { from: markerLine, to: endLine };
+}
+
+/**
+ * Find a callout block by its embedded request ID (`<!-- rid:UUID -->`).
+ * Scans ALL lines in the document (not limited to ±10 like proximity search).
+ * Returns inclusive {from, to} line numbers, or null if not found.
+ */
+export function findCalloutRangeById(
+	editor: Editor,
+	requestId: string
+): { from: number; to: number } | null {
+	const lineCount = editor.lineCount();
+	const needle = `<!-- rid:${requestId} -->`;
+
+	let markerLine = -1;
+	for (let i = 0; i < lineCount; i++) {
+		if (editor.getLine(i).includes(needle)) {
+			markerLine = i;
+			break;
+		}
+	}
+
+	if (markerLine === -1) {
+		return null;
+	}
+
+	// Scan forward to find end of blockquote block.
+	let endLine = markerLine;
+	for (let i = markerLine + 1; i < lineCount; i++) {
+		if (editor.getLine(i).startsWith(">")) {
+			endLine = i;
+		} else {
+			break;
+		}
+	}
+
+	return { from: markerLine, to: endLine };
+}
+
+/**
+ * Unified callout finder: tries ID-based search first, then falls back
+ * to proximity search. Returns inclusive {from, to} line numbers, or null.
+ */
+export function findCalloutBlock(
+	editor: Editor,
+	requestId?: string,
+	nearLine?: number
+): { from: number; to: number } | null {
+	// Try ID-based search first when a requestId is available.
+	if (requestId) {
+		const byId = findCalloutRangeById(editor, requestId);
+		if (byId) {
+			return byId;
+		}
+	}
+
+	// Fall back to proximity search when available.
+	if (nearLine !== undefined) {
+		return findCalloutRange(editor, nearLine);
+	}
+
+	return null;
 }
 
 /**

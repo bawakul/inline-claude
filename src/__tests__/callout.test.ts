@@ -5,6 +5,8 @@ import {
 	buildResponseCallout,
 	buildErrorCallout,
 	findCalloutRange,
+	findCalloutRangeById,
+	findCalloutBlock,
 	replaceCalloutBlock,
 } from "../callout";
 
@@ -34,6 +36,24 @@ describe("buildCalloutText", () => {
 	it("handles three lines", () => {
 		expect(buildCalloutText("a\nb\nc")).toBe(
 			"> [!claude] Thinking...\n> a\n> b\n> c"
+		);
+	});
+
+	it("embeds rid marker in header when requestId is provided", () => {
+		expect(buildCalloutText("hello", "some-uuid")).toBe(
+			"> [!claude] Thinking... <!-- rid:some-uuid -->\n> hello"
+		);
+	});
+
+	it("embeds rid marker in header-only callout (empty content)", () => {
+		expect(buildCalloutText("", "abc-123")).toBe(
+			"> [!claude] Thinking... <!-- rid:abc-123 -->"
+		);
+	});
+
+	it("produces unchanged output when requestId is undefined", () => {
+		expect(buildCalloutText("content")).toBe(
+			"> [!claude] Thinking...\n> content"
 		);
 	});
 });
@@ -159,6 +179,165 @@ describe("findCalloutRange", () => {
 		];
 		const result = findCalloutRange(makeEditor(lines), 0);
 		expect(result).toEqual({ from: 0, to: 0 });
+	});
+});
+
+describe("findCalloutRangeById", () => {
+	function makeEditor(lines: string[]) {
+		return {
+			lineCount: () => lines.length,
+			getLine: (n: number) => lines[n] ?? "",
+		} as any;
+	}
+
+	it("finds callout by rid at any position in document", () => {
+		const lines = [
+			"Some preamble",
+			"More text",
+			"Even more text",
+			"> [!claude] Thinking... <!-- rid:abc-123 -->",
+			"> question content",
+			"",
+			"Trailing text",
+		];
+		const result = findCalloutRangeById(makeEditor(lines), "abc-123");
+		expect(result).toEqual({ from: 3, to: 4 });
+	});
+
+	it("returns null when rid is not present", () => {
+		const lines = [
+			"> [!claude] Thinking...",
+			"> no rid here",
+			"other text",
+		];
+		const result = findCalloutRangeById(makeEditor(lines), "nonexistent");
+		expect(result).toBeNull();
+	});
+
+	it("correctly identifies block boundaries (stops at non-> line)", () => {
+		const lines = [
+			"> [!claude] Thinking... <!-- rid:uuid-1 -->",
+			"> line 1",
+			"> line 2",
+			"> line 3",
+			"not part of callout",
+			"> different block",
+		];
+		const result = findCalloutRangeById(makeEditor(lines), "uuid-1");
+		expect(result).toEqual({ from: 0, to: 3 });
+	});
+
+	it("handles single-line callout (header only, no body)", () => {
+		const lines = [
+			"> [!claude] Thinking... <!-- rid:solo -->",
+			"regular text",
+		];
+		const result = findCalloutRangeById(makeEditor(lines), "solo");
+		expect(result).toEqual({ from: 0, to: 0 });
+	});
+
+	it("finds callout far from beginning of document (beyond ±10 range)", () => {
+		// 25 lines of filler, then the callout at line 25
+		const lines = Array.from({ length: 25 }, (_, i) => `filler line ${i}`);
+		lines.push("> [!claude] Thinking... <!-- rid:far-away -->");
+		lines.push("> content");
+		lines.push("");
+		const result = findCalloutRangeById(makeEditor(lines), "far-away");
+		expect(result).toEqual({ from: 25, to: 26 });
+	});
+
+	it("multi-callout: two different IDs, each resolved correctly", () => {
+		const lines = [
+			"> [!claude] Thinking... <!-- rid:first-id -->",
+			"> question one",
+			"",
+			"Some text between",
+			"",
+			"> [!claude] Thinking... <!-- rid:second-id -->",
+			"> question two",
+			"> more of question two",
+			"",
+		];
+		const editor = makeEditor(lines);
+
+		const first = findCalloutRangeById(editor, "first-id");
+		expect(first).toEqual({ from: 0, to: 1 });
+
+		const second = findCalloutRangeById(editor, "second-id");
+		expect(second).toEqual({ from: 5, to: 7 });
+	});
+});
+
+describe("findCalloutBlock", () => {
+	function makeEditor(lines: string[]) {
+		return {
+			lineCount: () => lines.length,
+			getLine: (n: number) => lines[n] ?? "",
+		} as any;
+	}
+
+	it("uses ID-based search when requestId is provided and found", () => {
+		const lines = [
+			"filler",
+			"> [!claude] Thinking... <!-- rid:target -->",
+			"> content",
+			"",
+		];
+		const result = findCalloutBlock(makeEditor(lines), "target");
+		expect(result).toEqual({ from: 1, to: 2 });
+	});
+
+	it("falls back to proximity when requestId is provided but not found (legacy callout)", () => {
+		const lines = [
+			"> [!claude] Thinking...",
+			"> legacy content without rid",
+			"",
+		];
+		// requestId won't match, but nearLine 0 will find the proximity callout
+		const result = findCalloutBlock(makeEditor(lines), "missing-id", 0);
+		expect(result).toEqual({ from: 0, to: 1 });
+	});
+
+	it("uses proximity only when no requestId is provided", () => {
+		const lines = [
+			"> [!claude] Thinking...",
+			"> some content",
+			"",
+		];
+		const result = findCalloutBlock(makeEditor(lines), undefined, 0);
+		expect(result).toEqual({ from: 0, to: 1 });
+	});
+
+	it("returns null when neither ID nor proximity finds anything", () => {
+		const lines = ["no callout here", "just text"];
+		const result = findCalloutBlock(makeEditor(lines), "nope", 50);
+		expect(result).toBeNull();
+	});
+
+	it("returns null when called with no requestId and no nearLine", () => {
+		const lines = [
+			"> [!claude] Thinking...",
+			"> content",
+		];
+		const result = findCalloutBlock(makeEditor(lines));
+		expect(result).toBeNull();
+	});
+
+	it("prefers ID match over proximity when both could match different callouts", () => {
+		const lines = [
+			"> [!claude] Thinking...",
+			"> proximity would find this one",
+			"",
+			"gap text",
+			"",
+			"> [!claude] Thinking... <!-- rid:specific -->",
+			"> this is the one we want",
+			"",
+		];
+		// nearLine=0 would find the first callout via proximity,
+		// but requestId should find the second one by ID
+		const result = findCalloutBlock(makeEditor(lines), "specific", 0);
+		expect(result).toEqual({ from: 5, to: 6 });
 	});
 });
 
