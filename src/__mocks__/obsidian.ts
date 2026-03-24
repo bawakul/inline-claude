@@ -1,6 +1,20 @@
 // Minimal Obsidian mocks for unit testing.
 // These provide just enough shape for imports to resolve and tests to run.
 
+export class Notice {
+	message: string;
+	timeout?: number;
+	static instances: Notice[] = [];
+	constructor(message: string, timeout?: number) {
+		this.message = message;
+		this.timeout = timeout;
+		Notice.instances.push(this);
+	}
+	static reset(): void {
+		Notice.instances = [];
+	}
+}
+
 export class Plugin {
 	app: App;
 	manifest: any;
@@ -16,6 +30,9 @@ export class Plugin {
 	addSettingTab(_tab: any): void {}
 	registerInterval(id: number): number {
 		return id;
+	}
+	addStatusBarItem(): { setText: (text: string) => void } {
+		return { setText: (_text: string) => {} };
 	}
 }
 
@@ -112,6 +129,14 @@ export class Setting {
 	}
 	addText(cb: (text: TextComponent) => any): this {
 		cb(new TextComponent());
+		return this;
+	}
+	addButton(cb: (btn: any) => any): this {
+		const btn: any = {};
+		btn.setButtonText = (_t: string) => btn;
+		btn.setCta = () => btn;
+		btn.onClick = (_cb: () => void) => btn;
+		cb(btn);
 		return this;
 	}
 }

@@ -1,5 +1,6 @@
 import type ClaudeChatPlugin from "./main";
 import { requestUrl, Notice } from "obsidian";
+import { execSync } from "child_process";
 import * as path from "path";
 import * as fs from "fs";
 
@@ -28,6 +29,20 @@ You are connected to an Obsidian vault via the inline-claude channel.
 const INCLUDE_LINE = "@.obsidian/plugins/inline-claude/CLAUDE.md";
 
 /**
+ * Check whether Bun is installed and return its path, or null if not found.
+ * Exported for direct unit testing (K003 pattern).
+ */
+export function findBunBinary(): string | null {
+	try {
+		const resolved = execSync("which bun", { encoding: "utf-8" }).trim();
+		if (resolved) return resolved;
+	} catch {
+		// not found
+	}
+	return null;
+}
+
+/**
  * Ensure all required config files are in place.
  * Called once on plugin load. Non-destructive — only writes files that don't exist
  * or adds the include line if missing.
@@ -42,6 +57,18 @@ export async function ensureSetup(plugin: ClaudeChatPlugin): Promise<void> {
 	await ensureChannelJs(plugin, vaultPath);
 	await ensureChannelClaudeMd(plugin);
 	await ensureMcpJson(vaultPath, plugin);
+
+	// Check for Bun — warn but don't block setup
+	const bunPath = findBunBinary();
+	if (!bunPath) {
+		new Notice(
+			"Bun is required for the Inline Claude channel server but was not found.\nInstall from https://bun.sh"
+		);
+		console.log(
+			"Inline Claude: bun not found — channel server will not work until bun is installed"
+		);
+	}
+
 	await ensureRootClaudeMd(vaultPath);
 }
 
