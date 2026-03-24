@@ -87,7 +87,7 @@ function makePlugin(overrides?: {
 		settings: {
 			triggerPhrase: ";;",
 			channelPort: overrides?.channelPort ?? 4321,
-			pollingTimeoutSecs: overrides?.pollingTimeoutSecs ?? 60,
+			pollingTimeoutSecs: overrides?.pollingTimeoutSecs ?? 300,
 		},
 		lastQuery: null as any,
 		activePollers: new Map<string, number>(),
