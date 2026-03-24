@@ -7,7 +7,7 @@ import {
 	TFile,
 } from "obsidian";
 import type ClaudeChatPlugin from "./main";
-import { insertCallout, findCalloutRange, findCalloutBlock, replaceCalloutBlock, buildResponseCallout, buildErrorCallout } from "./callout";
+import { insertCallout, findCalloutRange, findCalloutBlock, replaceCalloutBlock, buildResponseCallout, buildErrorCallout, buildThinkingBody } from "./callout";
 import { sendPrompt, pollReply } from "./channel-client";
 
 /**
@@ -130,6 +130,7 @@ export class ClaudeSuggest extends EditorSuggest<string> {
 			}
 
 			const startTime = Date.now();
+			let lastDisplayUpdate = 0;
 
 			const intervalId = setInterval(async () => {
 				// Check if user navigated away
@@ -141,6 +142,17 @@ export class ClaudeSuggest extends EditorSuggest<string> {
 				}
 
 				const elapsed = Date.now() - startTime;
+
+				// --- Elapsed-time display update (before timeout/poll logic) ---
+				if (elapsed - lastDisplayUpdate >= 5000) {
+					const warning = elapsed >= 120000;
+					const range = findCalloutBlock(editor, requestId, nearLine);
+					if (range) {
+						replaceCalloutBlock(editor, range.from, range.to, buildThinkingBody(value, elapsed, warning));
+					}
+					lastDisplayUpdate = elapsed;
+				}
+
 				if (elapsed > timeoutMs) {
 					console.log(`Poll timeout for ${requestId} after ${elapsed}ms`);
 					const range = findCalloutBlock(editor, requestId, nearLine);

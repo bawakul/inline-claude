@@ -499,4 +499,141 @@ describe("selectSuggestion wiring", () => {
 		expect(lastCall[0]).toContain("> [!claude] Error");
 		expect(lastCall[0]).toContain("HTTP 500");
 	});
+
+	// --- Elapsed-time display update tests ---
+
+	it("updates callout body with elapsed time after 5 seconds", async () => {
+		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r1" });
+		mockPollReply.mockResolvedValue({ ok: true, status: "pending" });
+
+		const plugin = makePlugin();
+		const lines = ["> [!claude] Thinking...", "> hello"];
+		const editor = makeEditorWithLines(lines);
+
+		callSelectSuggestion(plugin, editor, "hello");
+		await vi.advanceTimersByTimeAsync(0);
+
+		// Advance 5 seconds — should trigger first elapsed update
+		await vi.advanceTimersByTimeAsync(5000);
+
+		const replaceCalls = editor.replaceRange.mock.calls;
+		// Find a call that contains the elapsed time marker
+		const elapsedCall = replaceCalls.find((call: any[]) => call[0].includes("⏱ 5s"));
+		expect(elapsedCall).toBeDefined();
+	});
+
+	it("updates elapsed time at 10s, 15s intervals", async () => {
+		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r1" });
+		mockPollReply.mockResolvedValue({ ok: true, status: "pending" });
+
+		const plugin = makePlugin();
+		const lines = ["> [!claude] Thinking...", "> hello"];
+		const editor = makeEditorWithLines(lines);
+
+		callSelectSuggestion(plugin, editor, "hello");
+		await vi.advanceTimersByTimeAsync(0);
+
+		// Advance to 15 seconds total
+		await vi.advanceTimersByTimeAsync(15000);
+
+		const replaceCalls = editor.replaceRange.mock.calls;
+		const elapsedCalls = replaceCalls.filter((call: any[]) => call[0].includes("⏱"));
+
+		// Should have 3 elapsed updates: at ~5s, ~10s, ~15s
+		expect(elapsedCalls.length).toBe(3);
+		expect(elapsedCalls[0][0]).toContain("⏱ 5s");
+		expect(elapsedCalls[1][0]).toContain("⏱ 10s");
+		expect(elapsedCalls[2][0]).toContain("⏱ 15s");
+	});
+
+	it("does not update callout body before 5 seconds", async () => {
+		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r1" });
+		mockPollReply.mockResolvedValue({ ok: true, status: "pending" });
+
+		const plugin = makePlugin();
+		const lines = ["> [!claude] Thinking...", "> hello"];
+		const editor = makeEditorWithLines(lines);
+
+		callSelectSuggestion(plugin, editor, "hello");
+		await vi.advanceTimersByTimeAsync(0);
+
+		// Advance only 4 seconds — should NOT trigger elapsed update
+		await vi.advanceTimersByTimeAsync(4000);
+
+		const replaceCalls = editor.replaceRange.mock.calls;
+		const elapsedCalls = replaceCalls.filter((call: any[]) => call[0].includes("⏱"));
+		expect(elapsedCalls.length).toBe(0);
+	});
+
+	it("adds warning text after 120 seconds", async () => {
+		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r1" });
+		mockPollReply.mockResolvedValue({ ok: true, status: "pending" });
+
+		const plugin = makePlugin({ pollingTimeoutSecs: 300 }); // long timeout so we reach 120s
+		const lines = ["> [!claude] Thinking...", "> hello"];
+		const editor = makeEditorWithLines(lines);
+
+		callSelectSuggestion(plugin, editor, "hello");
+		await vi.advanceTimersByTimeAsync(0);
+
+		// Advance to 125 seconds
+		await vi.advanceTimersByTimeAsync(125000);
+
+		const replaceCalls = editor.replaceRange.mock.calls;
+		// Find the last elapsed-related call — should contain warning text
+		const elapsedCalls = replaceCalls.filter((call: any[]) => call[0].includes("⏱"));
+		const lastElapsedCall = elapsedCalls[elapsedCalls.length - 1];
+		expect(lastElapsedCall[0]).toContain("Still waiting");
+	});
+
+	it("elapsed time displays correctly at 2+ minutes", async () => {
+		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r1" });
+		mockPollReply.mockResolvedValue({ ok: true, status: "pending" });
+
+		const plugin = makePlugin({ pollingTimeoutSecs: 300 });
+		const lines = ["> [!claude] Thinking...", "> hello"];
+		const editor = makeEditorWithLines(lines);
+
+		callSelectSuggestion(plugin, editor, "hello");
+		await vi.advanceTimersByTimeAsync(0);
+
+		// Advance to 150 seconds (2m 30s)
+		await vi.advanceTimersByTimeAsync(150000);
+
+		const replaceCalls = editor.replaceRange.mock.calls;
+		const elapsedCalls = replaceCalls.filter((call: any[]) => call[0].includes("⏱"));
+		const lastElapsedCall = elapsedCalls[elapsedCalls.length - 1];
+		expect(lastElapsedCall[0]).toContain("2m 30s");
+	});
+
+	it("elapsed update skipped if callout not found", async () => {
+		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r1" });
+		mockPollReply.mockResolvedValue({ ok: true, status: "pending" });
+
+		const plugin = makePlugin();
+		// Start with normal callout lines
+		const lines = ["> [!claude] Thinking...", "> hello"];
+		const editor = makeEditorWithLines(lines);
+
+		callSelectSuggestion(plugin, editor, "hello");
+		await vi.advanceTimersByTimeAsync(0);
+
+		// Simulate user deleting the callout — replace all lines with non-callout text
+		editor._data.splice(0, editor._data.length, "Some other text", "More text");
+
+		// Advance 5 seconds — elapsed update should be attempted but skipped (no callout)
+		await vi.advanceTimersByTimeAsync(5000);
+
+		// The poll should still be running (not crashed)
+		expect(plugin.activePollers.size).toBe(1);
+
+		// No elapsed update should have been written (no ⏱ in any call after the initial setup)
+		const replaceCalls = editor.replaceRange.mock.calls;
+		const elapsedCalls = replaceCalls.filter((call: any[]) => call[0].includes("⏱"));
+		expect(elapsedCalls.length).toBe(0);
+
+		// Advance to trigger another poll tick — still no crash
+		await vi.advanceTimersByTimeAsync(1000);
+		expect(plugin.activePollers.size).toBe(1);
+	});
 });
