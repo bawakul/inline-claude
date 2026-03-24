@@ -7,8 +7,11 @@ import {
 	TFile,
 } from "obsidian";
 import type ClaudeChatPlugin from "./main";
-import { insertCallout, findCalloutRange, findCalloutBlock, replaceCalloutBlock, buildResponseCallout, buildErrorCallout, buildThinkingBody } from "./callout";
+import { insertCallout, findCalloutRange, findCalloutBlock, replaceCalloutBlock, buildResponseCallout, buildErrorCallout, buildThinkingBody, buildTimeoutCallout, buildRetryThinkingCallout, RETRY_PROMPT } from "./callout";
 import { sendPrompt, pollReply } from "./channel-client";
+
+/** Retry timeout: 2 minutes — hardcoded, not configurable. */
+const RETRY_TIMEOUT_MS = 120_000;
 
 /**
  * Pure function for trigger detection — exported for unit testing.
@@ -154,12 +157,105 @@ export class ClaudeSuggest extends EditorSuggest<string> {
 				}
 
 				if (elapsed > timeoutMs) {
-					console.log(`Poll timeout for ${requestId} after ${elapsed}ms`);
+					console.log(`Poll timeout for ${requestId} after ${elapsed}ms — starting retry`);
+					this.plugin.cancelPoller(requestId);
+
+					// 1. Replace original callout with "Timed out" state
 					const range = findCalloutBlock(editor, requestId, nearLine);
 					if (range) {
-						replaceCalloutBlock(editor, range.from, range.to, buildErrorCallout(value, "Timed out waiting for Claude's response. Check the terminal — Claude Code may need your input."));
+						replaceCalloutBlock(editor, range.from, range.to, buildTimeoutCallout(value, elapsed));
 					}
-					this.plugin.cancelPoller(requestId);
+
+					// 2. Calculate insertion position — after the timed-out callout + blank line
+					const insertLine = range ? range.to + 1 : nearLine + 2;
+					const retryCalloutText = "\n" + buildRetryThinkingCallout();
+					const insertPos = { line: insertLine, ch: 0 };
+
+					// Ensure there's a newline before inserting (avoid merging with previous line)
+					const prevLineText = editor.getLine(insertLine - 1);
+					const prefix = prevLineText === "" ? "" : "\n";
+					editor.replaceRange(prefix + retryCalloutText, insertPos, insertPos);
+
+					// 3. Send retry prompt
+					const retryLine = insertLine + (prefix ? 1 : 0);
+					const retrySendResult = await sendPrompt(port, { filename, line: retryLine, query: RETRY_PROMPT });
+
+					if (!retrySendResult.ok) {
+						console.log(`Retry send failed: ${retrySendResult.error}`);
+						// Find the retry callout we just inserted and replace with error
+						const retryRange = findCalloutRange(editor, retryLine, "> [!claude] Thinking...");
+						if (retryRange) {
+							replaceCalloutBlock(editor, retryRange.from, retryRange.to, buildErrorCallout(RETRY_PROMPT, retrySendResult.error));
+						}
+						return;
+					}
+
+					const retryRequestId = retrySendResult.request_id;
+					console.log(`Retry sent, request_id: ${retryRequestId}`);
+
+					// Patch rid into the retry callout header
+					const retryPatchRange = findCalloutRange(editor, retryLine, "> [!claude] Thinking...");
+					if (retryPatchRange) {
+						const retryHeaderLine = editor.getLine(retryPatchRange.from);
+						const patchedRetryHeader = retryHeaderLine + ` <!-- rid:${retryRequestId} -->`;
+						editor.replaceRange(
+							patchedRetryHeader,
+							{ line: retryPatchRange.from, ch: 0 },
+							{ line: retryPatchRange.from, ch: retryHeaderLine.length }
+						);
+					}
+
+					// 4. Start retry poll loop — simpler than original (no elapsed updates, no second retry)
+					const retryStartTime = Date.now();
+
+					const retryIntervalId = setInterval(async () => {
+						// File-switch detection
+						const currentFile = this.plugin.app.workspace.getActiveFile?.();
+						if (currentFile && currentFile.path !== filePath) {
+							console.log(`File changed during retry (${filePath} → ${currentFile.path}), cancelling retry poller for ${retryRequestId}`);
+							this.plugin.cancelPoller(retryRequestId);
+							return;
+						}
+
+						const retryElapsed = Date.now() - retryStartTime;
+
+						if (retryElapsed > RETRY_TIMEOUT_MS) {
+							console.log(`Retry timeout for ${retryRequestId} after ${retryElapsed}ms`);
+							const retryRange = findCalloutBlock(editor, retryRequestId, retryLine);
+							if (retryRange) {
+								replaceCalloutBlock(editor, retryRange.from, retryRange.to, buildErrorCallout(RETRY_PROMPT, "Retry also timed out after 2 minutes."));
+							}
+							this.plugin.cancelPoller(retryRequestId);
+							return;
+						}
+
+						const retryPollResult = await pollReply(port, retryRequestId);
+
+						if (!retryPollResult.ok) {
+							console.log(`Retry poll error for ${retryRequestId}: ${retryPollResult.error}`);
+							const retryRange = findCalloutBlock(editor, retryRequestId, retryLine);
+							if (retryRange) {
+								replaceCalloutBlock(editor, retryRange.from, retryRange.to, buildErrorCallout(RETRY_PROMPT, retryPollResult.error));
+							}
+							this.plugin.cancelPoller(retryRequestId);
+							return;
+						}
+
+						if (retryPollResult.status === "complete") {
+							console.log(`Retry poll complete for ${retryRequestId}`);
+							const retryRange = findCalloutBlock(editor, retryRequestId, retryLine);
+							if (retryRange) {
+								replaceCalloutBlock(editor, retryRange.from, retryRange.to, buildResponseCallout(RETRY_PROMPT, retryPollResult.response));
+							}
+							this.plugin.cancelPoller(retryRequestId);
+							return;
+						}
+
+						// Still pending — continue polling
+					}, 1000) as unknown as number;
+
+					this.plugin.registerInterval(retryIntervalId);
+					this.plugin.registerPoller(retryRequestId, retryIntervalId);
 					return;
 				}
 

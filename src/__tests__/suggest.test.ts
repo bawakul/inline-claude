@@ -242,8 +242,13 @@ describe("selectSuggestion wiring", () => {
 		expect(lastCall[0]).toContain("HTTP 500");
 	});
 
-	it("replaces callout with timeout error when polling exceeds pollingTimeoutSecs", async () => {
-		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r1" });
+	it("replaces callout with timeout state and inserts retry callout at response timeout", async () => {
+		let sendCallCount = 0;
+		mockSendPrompt.mockImplementation(async () => {
+			sendCallCount++;
+			if (sendCallCount === 1) return { ok: true, request_id: "r1" };
+			return { ok: true, request_id: "r-retry" };
+		});
 		mockPollReply.mockResolvedValue({ ok: true, status: "pending" });
 
 		const plugin = makePlugin({ pollingTimeoutSecs: 3 });
@@ -261,12 +266,20 @@ describe("selectSuggestion wiring", () => {
 		await vi.advanceTimersByTimeAsync(1000);
 		await vi.advanceTimersByTimeAsync(1000);
 
-		expect(plugin.activePollers.size).toBe(0);
+		// Original poller cancelled, retry poller registered
+		expect(plugin.activePollers.has("r1")).toBe(false);
+		expect(plugin.activePollers.has("r-retry")).toBe(true);
 
 		const replaceCalls = editor.replaceRange.mock.calls;
-		const lastCall = replaceCalls[replaceCalls.length - 1];
-		expect(lastCall[0]).toContain("> [!claude] Error");
-		expect(lastCall[0]).toContain("Timed out waiting for Claude's response");
+		// Find the timeout callout replacement
+		const timeoutCall = replaceCalls.find((call: any[]) => call[0].includes("⏱ Timed out"));
+		expect(timeoutCall).toBeDefined();
+		expect(timeoutCall[0]).toContain("Retrying automatically...");
+
+		// Find the retry thinking callout insertion
+		const retryCall = replaceCalls.find((call: any[]) => call[0].includes("(Retry)"));
+		expect(retryCall).toBeDefined();
+		expect(retryCall[0]).toContain("> [!claude] Thinking...");
 	});
 
 	it("cancels poller silently when active file changes", async () => {
@@ -452,7 +465,12 @@ describe("selectSuggestion wiring", () => {
 	});
 
 	it("uses rid-based search for timeout handler", async () => {
-		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r1" });
+		let sendCallCount = 0;
+		mockSendPrompt.mockImplementation(async () => {
+			sendCallCount++;
+			if (sendCallCount === 1) return { ok: true, request_id: "r1" };
+			return { ok: true, request_id: "r-retry" };
+		});
 		mockPollReply.mockResolvedValue({ ok: true, status: "pending" });
 
 		const plugin = makePlugin({ pollingTimeoutSecs: 3 });
@@ -468,12 +486,14 @@ describe("selectSuggestion wiring", () => {
 		// Advance past timeout
 		await vi.advanceTimersByTimeAsync(4000);
 
-		expect(plugin.activePollers.size).toBe(0);
+		// Original poller cancelled, retry poller active
+		expect(plugin.activePollers.has("r1")).toBe(false);
+		expect(plugin.activePollers.has("r-retry")).toBe(true);
 
 		const replaceCalls = editor.replaceRange.mock.calls;
-		const lastCall = replaceCalls[replaceCalls.length - 1];
-		expect(lastCall[0]).toContain("> [!claude] Error");
-		expect(lastCall[0]).toContain("Timed out");
+		const timeoutCall = replaceCalls.find((call: any[]) => call[0].includes("⏱ Timed out"));
+		expect(timeoutCall).toBeDefined();
+		expect(timeoutCall[0]).toContain("Retrying automatically...");
 	});
 
 	it("uses rid-based search for poll error handler", async () => {
@@ -635,5 +655,203 @@ describe("selectSuggestion wiring", () => {
 		// Advance to trigger another poll tick — still no crash
 		await vi.advanceTimersByTimeAsync(1000);
 		expect(plugin.activePollers.size).toBe(1);
+	});
+
+	// --- Auto-retry flow tests ---
+
+	it("sends retry prompt via sendPrompt after timeout", async () => {
+		let sendCallCount = 0;
+		mockSendPrompt.mockImplementation(async (_port: number, payload: any) => {
+			sendCallCount++;
+			if (sendCallCount === 1) return { ok: true, request_id: "r1" };
+			return { ok: true, request_id: "r-retry" };
+		});
+		mockPollReply.mockResolvedValue({ ok: true, status: "pending" });
+
+		const plugin = makePlugin({ pollingTimeoutSecs: 3 });
+		const lines = ["> [!claude] Thinking...", "> hello"];
+		const editor = makeEditorWithLines(lines);
+
+		callSelectSuggestion(plugin, editor, "hello");
+		await vi.advanceTimersByTimeAsync(0);
+
+		// Advance past timeout
+		await vi.advanceTimersByTimeAsync(4000);
+
+		expect(mockSendPrompt).toHaveBeenCalledTimes(2);
+		const retryCall = mockSendPrompt.mock.calls[1];
+		expect(retryCall[0]).toBe(4321); // port
+		expect(retryCall[1].query).toContain("The previous question timed out");
+		expect(retryCall[1].filename).toBe("test.md");
+	});
+
+	it("replaces retry callout with response on retry success", async () => {
+		let sendCallCount = 0;
+		mockSendPrompt.mockImplementation(async () => {
+			sendCallCount++;
+			if (sendCallCount === 1) return { ok: true, request_id: "r1" };
+			return { ok: true, request_id: "r-retry" };
+		});
+
+		// Original poll: always pending. Retry poll: complete on first tick.
+		mockPollReply.mockImplementation(async (_port: number, reqId: string) => {
+			if (reqId === "r-retry") return { ok: true, status: "complete", response: "Here is the answer." };
+			return { ok: true, status: "pending" };
+		});
+
+		const plugin = makePlugin({ pollingTimeoutSecs: 3 });
+		const lines = ["> [!claude] Thinking...", "> hello"];
+		const editor = makeEditorWithLines(lines);
+
+		callSelectSuggestion(plugin, editor, "hello");
+		await vi.advanceTimersByTimeAsync(0);
+
+		// Advance past original timeout to trigger retry
+		await vi.advanceTimersByTimeAsync(4000);
+
+		// Retry poller should be active
+		expect(plugin.activePollers.has("r-retry")).toBe(true);
+
+		// Advance one tick for the retry poll
+		await vi.advanceTimersByTimeAsync(1000);
+
+		// Retry poller should be cancelled after completion
+		expect(plugin.activePollers.has("r-retry")).toBe(false);
+
+		const replaceCalls = editor.replaceRange.mock.calls;
+		const responseCall = replaceCalls.find((call: any[]) => call[0].includes("Here is the answer."));
+		expect(responseCall).toBeDefined();
+		expect(responseCall[0]).toContain("> [!claude-done]+");
+	});
+
+	it("replaces retry callout with error on retry timeout", async () => {
+		let sendCallCount = 0;
+		mockSendPrompt.mockImplementation(async () => {
+			sendCallCount++;
+			if (sendCallCount === 1) return { ok: true, request_id: "r1" };
+			return { ok: true, request_id: "r-retry" };
+		});
+		mockPollReply.mockResolvedValue({ ok: true, status: "pending" });
+
+		const plugin = makePlugin({ pollingTimeoutSecs: 3 });
+		const lines = ["> [!claude] Thinking...", "> hello"];
+		const editor = makeEditorWithLines(lines);
+
+		callSelectSuggestion(plugin, editor, "hello");
+		await vi.advanceTimersByTimeAsync(0);
+
+		// Advance past original timeout to trigger retry
+		await vi.advanceTimersByTimeAsync(4000);
+		expect(plugin.activePollers.has("r-retry")).toBe(true);
+
+		// Advance past retry timeout (120s + margin)
+		await vi.advanceTimersByTimeAsync(121000);
+
+		expect(plugin.activePollers.has("r-retry")).toBe(false);
+
+		const replaceCalls = editor.replaceRange.mock.calls;
+		const errorCall = replaceCalls.find((call: any[]) => call[0].includes("2 minutes"));
+		expect(errorCall).toBeDefined();
+		expect(errorCall[0]).toContain("> [!claude] Error");
+		expect(errorCall[0]).toContain("Retry also timed out after 2 minutes.");
+	});
+
+	it("replaces retry callout with error on retry poll failure", async () => {
+		let sendCallCount = 0;
+		mockSendPrompt.mockImplementation(async () => {
+			sendCallCount++;
+			if (sendCallCount === 1) return { ok: true, request_id: "r1" };
+			return { ok: true, request_id: "r-retry" };
+		});
+
+		// Original poll: pending. Retry poll: error.
+		mockPollReply.mockImplementation(async (_port: number, reqId: string) => {
+			if (reqId === "r-retry") return { ok: false, error: "Channel crashed" };
+			return { ok: true, status: "pending" };
+		});
+
+		const plugin = makePlugin({ pollingTimeoutSecs: 3 });
+		const lines = ["> [!claude] Thinking...", "> hello"];
+		const editor = makeEditorWithLines(lines);
+
+		callSelectSuggestion(plugin, editor, "hello");
+		await vi.advanceTimersByTimeAsync(0);
+
+		// Advance past original timeout
+		await vi.advanceTimersByTimeAsync(4000);
+		expect(plugin.activePollers.has("r-retry")).toBe(true);
+
+		// One tick for retry poll
+		await vi.advanceTimersByTimeAsync(1000);
+
+		expect(plugin.activePollers.has("r-retry")).toBe(false);
+
+		const replaceCalls = editor.replaceRange.mock.calls;
+		const errorCall = replaceCalls.find((call: any[]) => call[0].includes("Channel crashed"));
+		expect(errorCall).toBeDefined();
+		expect(errorCall[0]).toContain("> [!claude] Error");
+	});
+
+	it("cancels retry poller on file switch", async () => {
+		let sendCallCount = 0;
+		mockSendPrompt.mockImplementation(async () => {
+			sendCallCount++;
+			if (sendCallCount === 1) return { ok: true, request_id: "r1" };
+			return { ok: true, request_id: "r-retry" };
+		});
+		mockPollReply.mockResolvedValue({ ok: true, status: "pending" });
+
+		const plugin = makePlugin({ pollingTimeoutSecs: 3, activeFilePath: "test.md" });
+		const lines = ["> [!claude] Thinking...", "> hello"];
+		const editor = makeEditorWithLines(lines);
+
+		callSelectSuggestion(plugin, editor, "hello");
+		await vi.advanceTimersByTimeAsync(0);
+
+		// Advance past original timeout to trigger retry
+		await vi.advanceTimersByTimeAsync(4000);
+		expect(plugin.activePollers.has("r-retry")).toBe(true);
+
+		// Simulate file switch during retry
+		const differentFile = new TFile();
+		differentFile.path = "other.md";
+		plugin.app.workspace.getActiveFile = () => differentFile;
+
+		// One tick — retry poller should detect file change
+		await vi.advanceTimersByTimeAsync(1000);
+
+		expect(plugin.activePollers.has("r-retry")).toBe(false);
+	});
+
+	it("replaces retry callout with error when retry send fails", async () => {
+		let sendCallCount = 0;
+		mockSendPrompt.mockImplementation(async () => {
+			sendCallCount++;
+			if (sendCallCount === 1) return { ok: true, request_id: "r1" };
+			return { ok: false, error: "Connection refused" };
+		});
+		mockPollReply.mockResolvedValue({ ok: true, status: "pending" });
+
+		const plugin = makePlugin({ pollingTimeoutSecs: 3 });
+		const lines = ["> [!claude] Thinking...", "> hello"];
+		const editor = makeEditorWithLines(lines);
+
+		callSelectSuggestion(plugin, editor, "hello");
+		await vi.advanceTimersByTimeAsync(0);
+
+		// Advance past original timeout — retry send will fail
+		await vi.advanceTimersByTimeAsync(4000);
+
+		// No retry poller should be registered (send failed)
+		expect(plugin.activePollers.has("r-retry")).toBe(false);
+
+		const replaceCalls = editor.replaceRange.mock.calls;
+		// Should have the timeout callout AND an error replacing the retry callout
+		const timeoutCall = replaceCalls.find((call: any[]) => call[0].includes("⏱ Timed out"));
+		expect(timeoutCall).toBeDefined();
+
+		const errorCall = replaceCalls.find((call: any[]) => call[0].includes("Connection refused"));
+		expect(errorCall).toBeDefined();
+		expect(errorCall[0]).toContain("> [!claude] Error");
 	});
 });
