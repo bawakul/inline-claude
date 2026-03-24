@@ -61,24 +61,42 @@ describe("findBunBinary", () => {
 		expect(mockExecSync).toHaveBeenCalledWith("which bun", { encoding: "utf-8" });
 	});
 
-	it("returns null when bun is not found", async () => {
+	it("returns null when bun is not found via which or direct paths", async () => {
 		const { findBunBinary } = await import("../setup");
 		mockExecSync.mockImplementation(() => {
 			throw new Error("not found");
 		});
+		// Direct path checks also fail
+		mockExistsSync.mockReturnValue(false);
 
 		const result = findBunBinary();
 
 		expect(result).toBeNull();
 	});
 
-	it("returns null when which returns empty string", async () => {
+	it("returns null when which returns empty string and direct paths don't exist", async () => {
 		const { findBunBinary } = await import("../setup");
 		mockExecSync.mockReturnValue("   \n");
+		mockExistsSync.mockReturnValue(false);
 
 		const result = findBunBinary();
 
 		expect(result).toBeNull();
+	});
+
+	it("finds bun via direct path when which fails (Obsidian PATH issue)", async () => {
+		const { findBunBinary } = await import("../setup");
+		mockExecSync.mockImplementation(() => {
+			throw new Error("not found");
+		});
+		// Simulate ~/.bun/bin/bun existing on disk
+		mockExistsSync.mockImplementation((p: string) =>
+			p.includes(".bun/bin/bun") ? true : false
+		);
+
+		const result = findBunBinary();
+
+		expect(result).toMatch(/\.bun\/bin\/bun$/);
 	});
 });
 

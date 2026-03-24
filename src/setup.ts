@@ -37,8 +37,26 @@ export function findBunBinary(): string | null {
 		const resolved = execSync("which bun", { encoding: "utf-8" }).trim();
 		if (resolved) return resolved;
 	} catch {
-		// not found
+		// not found via PATH — try common install locations
 	}
+
+	// Obsidian's Electron process doesn't inherit shell profile PATH entries,
+	// so ~/.bun/bin won't be found by `which`. Check directly.
+	const homedir = process.env.HOME || process.env.USERPROFILE || "";
+	const directPaths = [
+		path.join(homedir, ".bun", "bin", "bun"),
+		"/usr/local/bin/bun",
+		"/opt/homebrew/bin/bun",
+	];
+
+	for (const p of directPaths) {
+		try {
+			if (fs.existsSync(p)) return p;
+		} catch {
+			// permission error or similar, skip
+		}
+	}
+
 	return null;
 }
 
