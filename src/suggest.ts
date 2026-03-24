@@ -7,11 +7,8 @@ import {
 	TFile,
 } from "obsidian";
 import type ClaudeChatPlugin from "./main";
-import { insertCallout, findCalloutRange, findCalloutBlock, replaceCalloutBlock, buildResponseCallout, buildErrorCallout, buildThinkingBody, buildTimeoutCallout, buildRetryThinkingCallout, RETRY_PROMPT } from "./callout";
+import { buildCalloutHeader, findCalloutBlock, replaceCalloutBlock, buildResponseCallout, buildErrorCallout, formatElapsed } from "./callout";
 import { sendPrompt, pollReply } from "./channel-client";
-
-/** Retry timeout: 2 minutes — hardcoded, not configurable. */
-const RETRY_TIMEOUT_MS = 120_000;
 
 /**
  * Pure function for trigger detection — exported for unit testing.
@@ -88,10 +85,19 @@ export class ClaudeSuggest extends EditorSuggest<string> {
 			file: TFile | null;
 		};
 
-		insertCallout(editor, start, end, value);
-
 		const filename = file ? file.path : "";
 		const nearLine = start.line;
+
+		// Generate client UUID for the rid marker BEFORE insertion.
+		// This ensures the post-processor can find the request in the state map
+		// as soon as Obsidian renders the callout.
+		const clientRid = crypto.randomUUID();
+		this.plugin.addPendingRequest(clientRid, value, nearLine);
+
+		// Insert single-line callout with rid already embedded + blank line for cursor
+		editor.replaceRange(buildCalloutHeader(value, clientRid) + "\n\n", start, end);
+		// Place cursor on the blank line below the callout (R030)
+		editor.setCursor({ line: start.line + 2, ch: 0 });
 
 		this.plugin.lastQuery = {
 			filename,
@@ -110,174 +116,73 @@ export class ClaudeSuggest extends EditorSuggest<string> {
 
 			if (!sendResult.ok) {
 				console.log(`Send failed: ${sendResult.error}`);
-				const range = findCalloutRange(editor, nearLine);
+				this.plugin.removePendingRequest(clientRid);
+				const range = findCalloutBlock(editor, clientRid, nearLine);
 				if (range) {
 					replaceCalloutBlock(editor, range.from, range.to, buildErrorCallout(value, sendResult.error));
 				}
 				return;
 			}
 
-			const requestId = sendResult.request_id;
-			console.log(`Prompt sent, request_id: ${requestId}`);
-
-			// Patch the rid into the just-inserted callout header
-			const patchRange = findCalloutRange(editor, nearLine);
-			if (patchRange) {
-				const headerLine = editor.getLine(patchRange.from);
-				const patchedHeader = headerLine + ` <!-- rid:${requestId} -->`;
-				editor.replaceRange(
-					patchedHeader,
-					{ line: patchRange.from, ch: 0 },
-					{ line: patchRange.from, ch: headerLine.length }
-				);
-			}
+			// Use the server's request_id for polling, but the clientRid stays in the DOM/state map
+			const serverRequestId = sendResult.request_id;
+			console.log(`Prompt sent, request_id: ${serverRequestId} (rid: ${clientRid})`);
 
 			const startTime = Date.now();
-			let lastDisplayUpdate = 0;
 
 			const intervalId = setInterval(async () => {
 				// Check if user navigated away
 				const activeFile = this.plugin.app.workspace.getActiveFile?.();
 				if (activeFile && activeFile.path !== filePath) {
-					console.log(`File changed (${filePath} → ${activeFile.path}), cancelling poller for ${requestId}`);
-					this.plugin.cancelPoller(requestId);
+					console.log(`File changed (${filePath} → ${activeFile.path}), cancelling poller for ${clientRid}`);
+					this.plugin.removePendingRequest(clientRid);
+					this.plugin.cancelPoller(clientRid);
 					return;
 				}
 
 				const elapsed = Date.now() - startTime;
 
-				// --- Elapsed-time display update (before timeout/poll logic) ---
-				if (elapsed - lastDisplayUpdate >= 5000) {
-					const warning = elapsed >= 120000;
-					const range = findCalloutBlock(editor, requestId, nearLine);
-					if (range) {
-						replaceCalloutBlock(editor, range.from, range.to, buildThinkingBody(value, elapsed, warning));
-					}
-					lastDisplayUpdate = elapsed;
-				}
-
 				if (elapsed > timeoutMs) {
-					console.log(`Poll timeout for ${requestId} after ${elapsed}ms — starting retry`);
-					this.plugin.cancelPoller(requestId);
+					const errorMsg = `No response after ${formatElapsed(elapsed)}.`;
+					console.log(`Poll timeout for ${clientRid} after ${elapsed}ms — transitioning to error state`);
 
-					// 1. Replace original callout with "Timed out" state
-					const range = findCalloutBlock(editor, requestId, nearLine);
+					// Update pendingRequests to error state (entry stays for post-processor)
+					this.plugin.updatePendingRequest(clientRid, {
+						status: "error",
+						errorMessage: errorMsg,
+						retryable: true,
+					});
+
+					// Write error callout to file
+					const range = findCalloutBlock(editor, clientRid, nearLine);
 					if (range) {
-						replaceCalloutBlock(editor, range.from, range.to, buildTimeoutCallout(value, elapsed));
+						replaceCalloutBlock(editor, range.from, range.to, buildErrorCallout(value, errorMsg));
 					}
-
-					// 2. Calculate insertion position — after the timed-out callout + blank line
-					const insertLine = range ? range.to + 1 : nearLine + 2;
-					const retryCalloutText = "\n" + buildRetryThinkingCallout();
-					const insertPos = { line: insertLine, ch: 0 };
-
-					// Ensure there's a newline before inserting (avoid merging with previous line)
-					const prevLineText = editor.getLine(insertLine - 1);
-					const prefix = prevLineText === "" ? "" : "\n";
-					editor.replaceRange(prefix + retryCalloutText, insertPos, insertPos);
-
-					// 3. Send retry prompt
-					const retryLine = insertLine + (prefix ? 1 : 0);
-					const retrySendResult = await sendPrompt(port, { filename, line: retryLine, query: RETRY_PROMPT });
-
-					if (!retrySendResult.ok) {
-						console.log(`Retry send failed: ${retrySendResult.error}`);
-						// Find the retry callout we just inserted and replace with error
-						const retryRange = findCalloutRange(editor, retryLine, "> [!claude] Thinking...");
-						if (retryRange) {
-							replaceCalloutBlock(editor, retryRange.from, retryRange.to, buildErrorCallout(RETRY_PROMPT, retrySendResult.error));
-						}
-						return;
-					}
-
-					const retryRequestId = retrySendResult.request_id;
-					console.log(`Retry sent, request_id: ${retryRequestId}`);
-
-					// Patch rid into the retry callout header
-					const retryPatchRange = findCalloutRange(editor, retryLine, "> [!claude] Thinking...");
-					if (retryPatchRange) {
-						const retryHeaderLine = editor.getLine(retryPatchRange.from);
-						const patchedRetryHeader = retryHeaderLine + ` <!-- rid:${retryRequestId} -->`;
-						editor.replaceRange(
-							patchedRetryHeader,
-							{ line: retryPatchRange.from, ch: 0 },
-							{ line: retryPatchRange.from, ch: retryHeaderLine.length }
-						);
-					}
-
-					// 4. Start retry poll loop — simpler than original (no elapsed updates, no second retry)
-					const retryStartTime = Date.now();
-
-					const retryIntervalId = setInterval(async () => {
-						// File-switch detection
-						const currentFile = this.plugin.app.workspace.getActiveFile?.();
-						if (currentFile && currentFile.path !== filePath) {
-							console.log(`File changed during retry (${filePath} → ${currentFile.path}), cancelling retry poller for ${retryRequestId}`);
-							this.plugin.cancelPoller(retryRequestId);
-							return;
-						}
-
-						const retryElapsed = Date.now() - retryStartTime;
-
-						if (retryElapsed > RETRY_TIMEOUT_MS) {
-							console.log(`Retry timeout for ${retryRequestId} after ${retryElapsed}ms`);
-							const retryRange = findCalloutBlock(editor, retryRequestId, retryLine);
-							if (retryRange) {
-								replaceCalloutBlock(editor, retryRange.from, retryRange.to, buildErrorCallout(RETRY_PROMPT, "Retry also timed out after 2 minutes."));
-							}
-							this.plugin.cancelPoller(retryRequestId);
-							return;
-						}
-
-						const retryPollResult = await pollReply(port, retryRequestId);
-
-						if (!retryPollResult.ok) {
-							console.log(`Retry poll error for ${retryRequestId}: ${retryPollResult.error}`);
-							const retryRange = findCalloutBlock(editor, retryRequestId, retryLine);
-							if (retryRange) {
-								replaceCalloutBlock(editor, retryRange.from, retryRange.to, buildErrorCallout(RETRY_PROMPT, retryPollResult.error));
-							}
-							this.plugin.cancelPoller(retryRequestId);
-							return;
-						}
-
-						if (retryPollResult.status === "complete") {
-							console.log(`Retry poll complete for ${retryRequestId}`);
-							const retryRange = findCalloutBlock(editor, retryRequestId, retryLine);
-							if (retryRange) {
-								replaceCalloutBlock(editor, retryRange.from, retryRange.to, buildResponseCallout(RETRY_PROMPT, retryPollResult.response));
-							}
-							this.plugin.cancelPoller(retryRequestId);
-							return;
-						}
-
-						// Still pending — continue polling
-					}, 1000) as unknown as number;
-
-					this.plugin.registerInterval(retryIntervalId);
-					this.plugin.registerPoller(retryRequestId, retryIntervalId);
+					this.plugin.cancelPoller(clientRid);
 					return;
 				}
 
-				const pollResult = await pollReply(port, requestId);
+				const pollResult = await pollReply(port, serverRequestId);
 
 				if (!pollResult.ok) {
-					console.log(`Poll error for ${requestId}: ${pollResult.error}`);
-					const range = findCalloutBlock(editor, requestId, nearLine);
+					console.log(`Poll error for ${clientRid}: ${pollResult.error}`);
+					this.plugin.removePendingRequest(clientRid);
+					const range = findCalloutBlock(editor, clientRid, nearLine);
 					if (range) {
 						replaceCalloutBlock(editor, range.from, range.to, buildErrorCallout(value, pollResult.error));
 					}
-					this.plugin.cancelPoller(requestId);
+					this.plugin.cancelPoller(clientRid);
 					return;
 				}
 
 				if (pollResult.status === "complete") {
-					console.log(`Poll complete for ${requestId}`);
-					const range = findCalloutBlock(editor, requestId, nearLine);
+					console.log(`Poll complete for ${clientRid}`);
+					this.plugin.removePendingRequest(clientRid);
+					const range = findCalloutBlock(editor, clientRid, nearLine);
 					if (range) {
 						replaceCalloutBlock(editor, range.from, range.to, buildResponseCallout(value, pollResult.response));
 					}
-					this.plugin.cancelPoller(requestId);
+					this.plugin.cancelPoller(clientRid);
 					return;
 				}
 
@@ -286,7 +191,128 @@ export class ClaudeSuggest extends EditorSuggest<string> {
 
 			// Register with both Obsidian (auto-cleanup) and our tracker
 			this.plugin.registerInterval(intervalId);
-			this.plugin.registerPoller(requestId, intervalId);
+			this.plugin.registerPoller(clientRid, intervalId);
 		})();
 	}
+}
+
+/**
+ * Retry a failed request by re-sending the original query and starting a new poll loop.
+ * Called by the Retry button click handler in the post-processor.
+ *
+ * Reads the original query from the pendingRequests map, removes the error entry,
+ * creates a new pending entry with a fresh clientRid, replaces the error callout with
+ * a new thinking header, sends the prompt, and starts polling.
+ */
+export async function retryRequest(plugin: ClaudeChatPlugin, requestId: string): Promise<void> {
+	console.log(`retryRequest: starting for ${requestId}`);
+
+	const entry = plugin.pendingRequests.get(requestId);
+	if (!entry || entry.status !== "error") {
+		console.log(`retryRequest: no error entry found for ${requestId}, aborting`);
+		return;
+	}
+
+	const editor = (plugin.app.workspace as any).activeEditor?.editor;
+	if (!editor) {
+		console.warn("retryRequest: no active editor, aborting");
+		return;
+	}
+
+	const query = entry.query;
+	const nearLine = entry.nearLine;
+	const newRid = crypto.randomUUID();
+
+	// Remove old error entry, add new thinking entry
+	plugin.removePendingRequest(requestId);
+	plugin.addPendingRequest(newRid, query, nearLine);
+	plugin.updatePendingRequest(newRid, { retryOf: requestId });
+
+	// Replace error callout in the file with new thinking header
+	const range = findCalloutBlock(editor, requestId, nearLine);
+	if (range) {
+		replaceCalloutBlock(editor, range.from, range.to, buildCalloutHeader(query, newRid) + "\n\n");
+	}
+
+	const filename = plugin.app.workspace.getActiveFile?.()?.path ?? "";
+	const port = plugin.settings.channelPort;
+	const timeoutMs = plugin.settings.pollingTimeoutSecs * 1000;
+	const filePath = filename;
+
+	console.log(`retryRequest: sending prompt "${query}" with new rid ${newRid}`);
+	const sendResult = await sendPrompt(port, { filename, line: nearLine, query });
+
+	if (!sendResult.ok) {
+		console.log(`retryRequest: send failed: ${sendResult.error}`);
+		plugin.removePendingRequest(newRid);
+		const errRange = findCalloutBlock(editor, newRid, nearLine);
+		if (errRange) {
+			replaceCalloutBlock(editor, errRange.from, errRange.to, buildErrorCallout(query, sendResult.error));
+		}
+		return;
+	}
+
+	const serverRequestId = sendResult.request_id;
+	console.log(`retryRequest: prompt sent, request_id: ${serverRequestId} (rid: ${newRid})`);
+
+	const startTime = Date.now();
+
+	const intervalId = setInterval(async () => {
+		// Check if user navigated away
+		const activeFile = plugin.app.workspace.getActiveFile?.();
+		if (activeFile && activeFile.path !== filePath) {
+			console.log(`retryRequest: file changed (${filePath} → ${activeFile.path}), cancelling poller for ${newRid}`);
+			plugin.removePendingRequest(newRid);
+			plugin.cancelPoller(newRid);
+			return;
+		}
+
+		const elapsed = Date.now() - startTime;
+
+		if (elapsed > timeoutMs) {
+			const errorMsg = `No response after ${formatElapsed(elapsed)}.`;
+			console.log(`retryRequest: poll timeout for ${newRid} after ${elapsed}ms`);
+			plugin.updatePendingRequest(newRid, {
+				status: "error",
+				errorMessage: errorMsg,
+				retryable: true,
+			});
+			const range = findCalloutBlock(editor, newRid, nearLine);
+			if (range) {
+				replaceCalloutBlock(editor, range.from, range.to, buildErrorCallout(query, errorMsg));
+			}
+			plugin.cancelPoller(newRid);
+			return;
+		}
+
+		const pollResult = await pollReply(port, serverRequestId);
+
+		if (!pollResult.ok) {
+			console.log(`retryRequest: poll error for ${newRid}: ${pollResult.error}`);
+			plugin.removePendingRequest(newRid);
+			const range = findCalloutBlock(editor, newRid, nearLine);
+			if (range) {
+				replaceCalloutBlock(editor, range.from, range.to, buildErrorCallout(query, pollResult.error));
+			}
+			plugin.cancelPoller(newRid);
+			return;
+		}
+
+		if (pollResult.status === "complete") {
+			console.log(`retryRequest: poll complete for ${newRid}`);
+			plugin.removePendingRequest(newRid);
+			const range = findCalloutBlock(editor, newRid, nearLine);
+			if (range) {
+				replaceCalloutBlock(editor, range.from, range.to, buildResponseCallout(query, pollResult.response));
+			}
+			plugin.cancelPoller(newRid);
+			return;
+		}
+
+		// Still pending — continue polling
+	}, 1000) as unknown as number;
+
+	plugin.registerInterval(intervalId);
+	plugin.registerPoller(newRid, intervalId);
+	console.log(`retryRequest: poll loop started for ${newRid}`);
 }

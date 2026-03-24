@@ -1,6 +1,33 @@
 // Minimal Obsidian mocks for unit testing.
 // These provide just enough shape for imports to resolve and tests to run.
 
+export class Component {
+	load(): void {}
+	unload(): void {}
+	registerInterval(id: number): number {
+		return id;
+	}
+}
+
+export class MarkdownRenderChild extends Component {
+	containerEl: HTMLElement;
+	constructor(containerEl: HTMLElement) {
+		super();
+		this.containerEl = containerEl;
+	}
+	onload(): void {}
+	onunload(): void {}
+}
+
+export class MarkdownPostProcessorContext {
+	docId: string = "";
+	sourcePath: string = "";
+	addChild(_child: any): void {}
+	getSectionInfo(): null {
+		return null;
+	}
+}
+
 export class Notice {
 	message: string;
 	timeout?: number;
@@ -43,6 +70,9 @@ export class App {
 			f.path = "test.md";
 			return f;
 		},
+		activeEditor: {
+			editor: new Editor(),
+		} as any,
 	};
 }
 
@@ -57,6 +87,7 @@ export class Editor {
 	getCursor(): EditorPosition {
 		return { line: 0, ch: 0 };
 	}
+	setCursor(_pos: EditorPosition): void {}
 }
 
 export interface EditorPosition {

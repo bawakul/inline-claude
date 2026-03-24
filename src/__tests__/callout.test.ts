@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import {
-	buildCalloutText,
+	buildCalloutHeader,
 	insertCallout,
 	buildResponseCallout,
 	buildErrorCallout,
@@ -9,62 +9,52 @@ import {
 	findCalloutBlock,
 	replaceCalloutBlock,
 	formatElapsed,
-	buildThinkingBody,
-	RETRY_PROMPT,
-	buildTimeoutCallout,
-	buildRetryThinkingCallout,
 } from "../callout";
 
-describe("buildCalloutText", () => {
-	it("formats single-line content", () => {
-		expect(buildCalloutText("hello")).toBe(
-			"> [!claude] Thinking...\n> hello"
+describe("buildCalloutHeader", () => {
+	it("formats query as the callout title", () => {
+		expect(buildCalloutHeader("hello")).toBe(
+			"> [!claude] hello"
 		);
 	});
 
-	it("formats multi-line content with each line prefixed", () => {
-		expect(buildCalloutText("line1\nline2")).toBe(
-			"> [!claude] Thinking...\n> line1\n> line2"
+	it("handles multi-line query (flattened into title)", () => {
+		expect(buildCalloutHeader("line1\nline2")).toBe(
+			"> [!claude] line1\nline2"
 		);
 	});
 
-	it("returns just the header for empty content", () => {
-		expect(buildCalloutText("")).toBe("> [!claude] Thinking...");
+	it("handles empty query", () => {
+		expect(buildCalloutHeader("")).toBe("> [!claude] ");
 	});
 
 	it("handles content with leading/trailing whitespace", () => {
-		expect(buildCalloutText("  spaced  ")).toBe(
-			"> [!claude] Thinking...\n>   spaced  "
+		expect(buildCalloutHeader("  spaced  ")).toBe(
+			"> [!claude]   spaced  "
 		);
 	});
 
-	it("handles three lines", () => {
-		expect(buildCalloutText("a\nb\nc")).toBe(
-			"> [!claude] Thinking...\n> a\n> b\n> c"
+	it("embeds rid marker when requestId is provided", () => {
+		expect(buildCalloutHeader("hello", "some-uuid")).toBe(
+			"> [!claude] hello <!-- rid:some-uuid -->"
 		);
 	});
 
-	it("embeds rid marker in header when requestId is provided", () => {
-		expect(buildCalloutText("hello", "some-uuid")).toBe(
-			"> [!claude] Thinking... <!-- rid:some-uuid -->\n> hello"
-		);
-	});
-
-	it("embeds rid marker in header-only callout (empty content)", () => {
-		expect(buildCalloutText("", "abc-123")).toBe(
-			"> [!claude] Thinking... <!-- rid:abc-123 -->"
+	it("embeds rid marker with empty query", () => {
+		expect(buildCalloutHeader("", "abc-123")).toBe(
+			"> [!claude]  <!-- rid:abc-123 -->"
 		);
 	});
 
 	it("produces unchanged output when requestId is undefined", () => {
-		expect(buildCalloutText("content")).toBe(
-			"> [!claude] Thinking...\n> content"
+		expect(buildCalloutHeader("content")).toBe(
+			"> [!claude] content"
 		);
 	});
 });
 
 describe("insertCallout", () => {
-	it("calls editor.replaceRange with callout text", () => {
+	it("calls editor.replaceRange with callout header", () => {
 		const replaceRange = vi.fn();
 		const editor = { replaceRange } as any;
 		const from = { line: 0, ch: 0 };
@@ -74,7 +64,22 @@ describe("insertCallout", () => {
 
 		expect(replaceRange).toHaveBeenCalledOnce();
 		expect(replaceRange).toHaveBeenCalledWith(
-			"> [!claude] Thinking...\n> hello",
+			"> [!claude] hello",
+			from,
+			to
+		);
+	});
+
+	it("embeds rid when requestId is provided", () => {
+		const replaceRange = vi.fn();
+		const editor = { replaceRange } as any;
+		const from = { line: 0, ch: 0 };
+		const to = { line: 0, ch: 7 };
+
+		insertCallout(editor, from, to, "hello", "test-uuid");
+
+		expect(replaceRange).toHaveBeenCalledWith(
+			"> [!claude] hello <!-- rid:test-uuid -->",
 			from,
 			to
 		);
@@ -103,10 +108,10 @@ describe("buildResponseCallout", () => {
 });
 
 describe("buildErrorCallout", () => {
-	it("formats error message correctly", () => {
+	it("formats error with query as title", () => {
 		const result = buildErrorCallout("What is X?", "Connection refused");
 		expect(result).toBe(
-			"> [!claude] Error\n> **Q:** What is X?\n>\n> ⚠️ Connection refused"
+			"> [!claude] What is X?\n> ⚠️ Connection refused"
 		);
 	});
 });
@@ -412,92 +417,4 @@ describe("formatElapsed", () => {
 	});
 });
 
-describe("buildThinkingBody", () => {
-	it("returns same as buildCalloutText when no elapsed is provided", () => {
-		const query = "What is Obsidian?";
-		expect(buildThinkingBody(query)).toBe(buildCalloutText(query));
-	});
 
-	it("appends elapsed line when elapsedMs ≥ 5000", () => {
-		expect(buildThinkingBody("test query", 15000)).toBe(
-			"> [!claude] Thinking...\n> test query\n> ⏱ 15s"
-		);
-	});
-
-	it("appends elapsed line with warning text when warning is true", () => {
-		expect(buildThinkingBody("test query", 130000, true)).toBe(
-			"> [!claude] Thinking...\n> test query\n> ⏱ 2m 10s — Still waiting. Claude may need input in the terminal."
-		);
-	});
-
-	it("omits elapsed line when elapsedMs < 5000", () => {
-		const query = "short wait";
-		expect(buildThinkingBody(query, 3000)).toBe(buildCalloutText(query));
-	});
-
-	it("handles multi-line query with elapsed", () => {
-		const query = "line one\nline two";
-		expect(buildThinkingBody(query, 10000)).toBe(
-			"> [!claude] Thinking...\n> line one\n> line two\n> ⏱ 10s"
-		);
-	});
-});
-
-describe("RETRY_PROMPT", () => {
-	it("is a non-empty string", () => {
-		expect(typeof RETRY_PROMPT).toBe("string");
-		expect(RETRY_PROMPT.length).toBeGreaterThan(0);
-	});
-
-	it("contains expected key phrases", () => {
-		expect(RETRY_PROMPT).toContain("timed out");
-		expect(RETRY_PROMPT).toContain("respond");
-	});
-});
-
-describe("buildTimeoutCallout", () => {
-	it("formats single-line query with correct elapsed time (300s → 5m 0s)", () => {
-		const result = buildTimeoutCallout("What is markdown?", 300000);
-		expect(result).toBe(
-			"> [!claude] ⏱ Timed out\n> What is markdown?\n> Waited 5m 0s. Retrying automatically..."
-		);
-	});
-
-	it("handles multi-line query — each line is prefixed with >", () => {
-		const result = buildTimeoutCallout("Multi\nline query", 120000);
-		expect(result).toBe(
-			"> [!claude] ⏱ Timed out\n> Multi\n> line query\n> Waited 2m 0s. Retrying automatically..."
-		);
-	});
-
-	it("formats sub-minute elapsed time", () => {
-		const result = buildTimeoutCallout("Quick q", 45000);
-		expect(result).toBe(
-			"> [!claude] ⏱ Timed out\n> Quick q\n> Waited 45s. Retrying automatically..."
-		);
-	});
-
-	it("handles empty query", () => {
-		const result = buildTimeoutCallout("", 60000);
-		expect(result).toBe(
-			"> [!claude] ⏱ Timed out\n> \n> Waited 1m 0s. Retrying automatically..."
-		);
-	});
-});
-
-describe("buildRetryThinkingCallout", () => {
-	it("produces correct format with retry prefix", () => {
-		const result = buildRetryThinkingCallout();
-		expect(result).toBe(
-			`> [!claude] Thinking...\n> (Retry) ${RETRY_PROMPT}`
-		);
-	});
-
-	it("starts with standard Thinking header", () => {
-		expect(buildRetryThinkingCallout()).toMatch(/^> \[!claude\] Thinking\.\.\./);
-	});
-
-	it("includes (Retry) marker in body", () => {
-		expect(buildRetryThinkingCallout()).toContain("> (Retry)");
-	});
-});

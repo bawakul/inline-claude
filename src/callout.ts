@@ -1,40 +1,28 @@
 import type { Editor, EditorPosition } from "obsidian";
 
 /**
- * Constant retry prompt sent as the follow-up question when a request times out.
- * Used by both the retry callout builder and the actual sendPrompt() call.
- */
-export const RETRY_PROMPT =
-	"The previous question timed out. Please respond to the original question above.";
-
-/**
- * Build a callout block from user content.
- * Multi-line content gets each line prefixed with `> `.
- * Empty content returns just the header.
+ * Build a single-line callout header with the user's prompt as the title.
+ * The prompt IS the title — no body lines are generated.
  * When requestId is provided, a `<!-- rid:UUID -->` marker is appended
  * to the header line for ID-based callout matching.
  */
-export function buildCalloutText(content: string, requestId?: string): string {
+export function buildCalloutHeader(query: string, requestId?: string): string {
 	const rid = requestId ? ` <!-- rid:${requestId} -->` : "";
-	const header = `> [!claude] Thinking...${rid}`;
-	if (content === "") {
-		return header;
-	}
-	const lines = content.split("\n");
-	const prefixed = lines.map((line) => `> ${line}`).join("\n");
-	return `${header}\n${prefixed}`;
+	return `> [!claude] ${query}${rid}`;
 }
 
 /**
- * Replace a range in the editor with a callout block.
+ * Replace a range in the editor with a callout header.
+ * When requestId is provided, it's embedded as a rid marker in the header.
  */
 export function insertCallout(
 	editor: Editor,
 	from: EditorPosition,
 	to: EditorPosition,
-	content: string
+	content: string,
+	requestId?: string
 ): void {
-	editor.replaceRange(buildCalloutText(content), from, to);
+	editor.replaceRange(buildCalloutHeader(content, requestId), from, to);
 }
 
 /**
@@ -54,14 +42,10 @@ export function buildResponseCallout(query: string, response: string): string {
 }
 
 /**
- * Build an error callout with the original query and error message.
+ * Build an error callout with the original query as title and error in body.
  */
 export function buildErrorCallout(query: string, errorMsg: string): string {
-	const header = "> [!claude] Error";
-	const queryLine = `> **Q:** ${query}`;
-	const separator = ">";
-	const errorLine = `> ⚠️ ${errorMsg}`;
-	return `${header}\n${queryLine}\n${separator}\n${errorLine}`;
+	return `> [!claude] ${query}\n> ⚠️ ${errorMsg}`;
 }
 
 /**
@@ -74,7 +58,7 @@ export function buildErrorCallout(query: string, errorMsg: string): string {
 export function findCalloutRange(
 	editor: Editor,
 	nearLine: number,
-	marker: string = "> [!claude] Thinking..."
+	marker: string = "> [!claude] "
 ): { from: number; to: number } | null {
 	const lineCount = editor.lineCount();
 	const searchStart = Math.max(0, nearLine - 10);
@@ -187,31 +171,6 @@ export function formatElapsed(ms: number): string {
 }
 
 /**
- * Build the full callout body for a "Thinking..." callout with optional
- * elapsed time and warning text.
- *
- * - Always starts with `> [!claude] Thinking...\n> {query}`
- * - If `elapsedMs` ≥ 5000: appends `\n> ⏱ {formatElapsed(elapsedMs)}`
- * - If `warning` is true: the elapsed line includes a warning suffix
- * - If `elapsedMs` is undefined or < 5000: no elapsed line
- */
-export function buildThinkingBody(
-	query: string,
-	elapsedMs?: number,
-	warning?: boolean
-): string {
-	const base = buildCalloutText(query);
-	if (elapsedMs === undefined || elapsedMs < 5000) {
-		return base;
-	}
-	const elapsed = formatElapsed(elapsedMs);
-	const warningText = warning
-		? ` — Still waiting. Claude may need input in the terminal.`
-		: "";
-	return `${base}\n> ⏱ ${elapsed}${warningText}`;
-}
-
-/**
  * Replace lines from..to (inclusive) with new content.
  */
 export function replaceCalloutBlock(
@@ -228,31 +187,4 @@ export function replaceCalloutBlock(
 	editor.replaceRange(newContent, fromPos, toPos);
 }
 
-/**
- * Build a "Timed out" callout that replaces the original "Thinking..." callout
- * when the response timeout fires.
- *
- * Format:
- * > [!claude] ⏱ Timed out
- * > {query — each line prefixed with > }
- * > Waited {elapsed}. Retrying automatically...
- */
-export function buildTimeoutCallout(query: string, elapsedMs: number): string {
-	const header = "> [!claude] ⏱ Timed out";
-	const queryLines = query.split("\n").map((line) => `> ${line}`).join("\n");
-	const footer = `> Waited ${formatElapsed(elapsedMs)}. Retrying automatically...`;
-	return `${header}\n${queryLines}\n${footer}`;
-}
 
-/**
- * Build the "Thinking..." callout for a retry attempt after a timeout.
- * Uses `RETRY_PROMPT` as the body text — no query parameter needed.
- *
- * Format:
- * > [!claude] Thinking...
- * > (Retry) The previous question timed out. Please respond to the original question above.
- */
-export function buildRetryThinkingCallout(): string {
-	const header = "> [!claude] Thinking...";
-	return `${header}\n> (Retry) ${RETRY_PROMPT}`;
-}
