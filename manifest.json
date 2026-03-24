@@ -1,7 +1,7 @@
 {
 	"id": "inline-claude",
 	"name": "Inline Claude",
-	"version": "0.1.5",
+	"version": "0.1.6",
 	"minAppVersion": "1.0.0",
 	"description": "Ask Claude questions inline while writing. Type ;; to trigger, get responses as native callout blocks.",
 	"author": "Bawa's Lab",
