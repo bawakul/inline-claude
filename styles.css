@@ -1,0 +1,18 @@
+.callout[data-callout="claude-done"] {
+  --callout-color: 100, 180, 100;
+  --callout-icon: message-circle;
+}
+
+.callout[data-callout="claude"] {
+  --callout-color: 180, 180, 180;
+  --callout-icon: loader;
+}
+
+.callout[data-callout="claude"] .callout-icon .svg-icon {
+  animation: claude-spin 1.5s linear infinite;
+}
+
+@keyframes claude-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

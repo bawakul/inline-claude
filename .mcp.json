@@ -1,0 +1,8 @@
+{
+	"mcpServers": {
+		"obsidian-chat": {
+			"command": "bun",
+			"args": ["./channel/server.ts"]
+		}
+	}
+}

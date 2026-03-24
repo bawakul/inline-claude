@@ -1,0 +1,47 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Obsidian workspace (personal settings)
+.obsidian/workspace.json
+.obsidian/daily-notes.json
+.obsidian/graph.json
+
+# Claude sessions (local only)
+.claude/sessions/
+
+# GSD / agent runtime artifacts
+.gsd
+.gsd/
+.gsd.lock/
+.bg-shell/
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.code-workspace
+.env
+.env.*
+!.env.example
+node_modules/
+.next/
+dist/
+build/
+__pycache__/
+*.pyc
+.venv/
+venv/
+target/
+vendor/
+*.log
+coverage/
+.cache/
+tmp/
+
+# Build artifacts
+main.js
+
+# Obsidian vault folders (not part of plugin source)
+_Portfolio/
+_Templates/
