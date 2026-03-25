@@ -6,25 +6,13 @@ import {
 	ClaudeChatSettingTab,
 } from "./settings";
 import { ensureSetup } from "./setup";
-import { registerClaudePostProcessor } from "./post-processor";
 import { requestUrl } from "obsidian";
-
-export type PendingRequest = {
-	query: string;
-	startTime: number;
-	status: "thinking" | "error" | "done";
-	nearLine: number;
-	errorMessage?: string;
-	retryable?: boolean;
-	retryOf?: string;
-};
 
 export default class ClaudeChatPlugin extends Plugin {
 	settings: ClaudeChatSettings = DEFAULT_SETTINGS;
 	lastQuery: { filename: string; line: number; query: string } | null =
 		null;
 	activePollers: Map<string, number> = new Map();
-	pendingRequests: Map<string, PendingRequest> = new Map();
 	channelHealthy: boolean = false;
 	private healthInterval: number | null = null;
 	statusBarEl: HTMLElement | null = null;
@@ -37,9 +25,6 @@ export default class ClaudeChatPlugin extends Plugin {
 
 		// Auto-setup: ensure .mcp.json and CLAUDE.md are in place
 		await ensureSetup(this);
-
-		// Register post-processor for DOM-only timer rendering in pending callouts
-		registerClaudePostProcessor(this);
 
 		// Status bar indicator
 		this.statusBarEl = this.addStatusBarItem();
@@ -80,29 +65,6 @@ export default class ClaudeChatPlugin extends Plugin {
 			clearInterval(intervalId);
 			this.activePollers.delete(requestId);
 			console.log(`Polling cancelled for ${requestId}`);
-		}
-	}
-
-	addPendingRequest(requestId: string, query: string, nearLine: number): void {
-		this.pendingRequests.set(requestId, {
-			query,
-			startTime: Date.now(),
-			status: "thinking",
-			nearLine,
-		});
-		console.log(`Pending request added: ${requestId}`);
-	}
-
-	removePendingRequest(requestId: string): void {
-		this.pendingRequests.delete(requestId);
-		console.log(`Pending request removed: ${requestId}`);
-	}
-
-	updatePendingRequest(requestId: string, fields: Partial<PendingRequest>): void {
-		const entry = this.pendingRequests.get(requestId);
-		if (entry) {
-			Object.assign(entry, fields);
-			console.log(`Pending request updated: ${requestId} → ${fields.status ?? entry.status}`);
 		}
 	}
 

@@ -62,7 +62,7 @@ vi.mock("../channel-client", () => ({
 }));
 
 // We need to import after the mock declarations are set up
-import { ClaudeSuggest, retryRequest } from "../suggest";
+import { ClaudeSuggest } from "../suggest";
 import { App, Editor, TFile } from "obsidian";
 
 // Track crypto.randomUUID calls with predictable return values
@@ -86,8 +86,6 @@ function makePlugin(overrides?: {
 		}
 	}
 
-	const pendingRequests = new Map<string, any>();
-
 	return {
 		app,
 		settings: {
@@ -97,7 +95,6 @@ function makePlugin(overrides?: {
 		},
 		lastQuery: null as any,
 		activePollers: new Map<string, number>(),
-		pendingRequests,
 		registerPoller(requestId: string, intervalId: number) {
 			this.activePollers.set(requestId, intervalId);
 		},
@@ -106,26 +103,6 @@ function makePlugin(overrides?: {
 			if (id !== undefined) {
 				clearInterval(id);
 				this.activePollers.delete(requestId);
-			}
-		},
-		addPendingRequest(requestId: string, query: string, nearLine: number) {
-			this.pendingRequests.set(requestId, {
-				query,
-				startTime: Date.now(),
-				status: "thinking",
-				nearLine,
-			});
-			console.log(`Pending request added: ${requestId}`);
-		},
-		removePendingRequest(requestId: string) {
-			this.pendingRequests.delete(requestId);
-			console.log(`Pending request removed: ${requestId}`);
-		},
-		updatePendingRequest(requestId: string, fields: Record<string, any>) {
-			const entry = this.pendingRequests.get(requestId);
-			if (entry) {
-				Object.assign(entry, fields);
-				console.log(`Pending request updated: ${requestId} → ${fields.status ?? entry.status}`);
 			}
 		},
 		registerInterval(id: number) {
@@ -278,7 +255,7 @@ describe("selectSuggestion wiring", () => {
 		expect(lastCall[0]).toContain("⚠️ HTTP 500");
 	});
 
-	it("timeout updates pendingRequests to error state instead of auto-retrying", async () => {
+	it("timeout writes error callout", async () => {
 		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r1" });
 		mockPollReply.mockResolvedValue({ ok: true, status: "pending" });
 
@@ -291,15 +268,8 @@ describe("selectSuggestion wiring", () => {
 		// Advance past timeout (4000ms > 3000ms)
 		await vi.advanceTimersByTimeAsync(4000);
 
-		// Original poller should be cancelled
-		expect(plugin.activePollers.has("uuid-1")).toBe(false);
-
-		// Entry should STILL exist in pendingRequests with error state
-		expect(plugin.pendingRequests.has("uuid-1")).toBe(true);
-		const entry = plugin.pendingRequests.get("uuid-1");
-		expect(entry.status).toBe("error");
-		expect(entry.retryable).toBe(true);
-		expect(entry.errorMessage).toContain("No response after");
+		// Poller should be cancelled
+		expect(plugin.activePollers.size).toBe(0);
 
 		// sendPrompt should have been called only ONCE (no auto-retry)
 		expect(mockSendPrompt).toHaveBeenCalledOnce();
@@ -347,158 +317,6 @@ describe("selectSuggestion wiring", () => {
 		await vi.advanceTimersByTimeAsync(0);
 
 		expect(plugin.activePollers.size).toBe(1);
-		// Poller is now registered with clientRid (uuid-1), not server's request_id
-		expect(plugin.activePollers.has("uuid-1")).toBe(true);
-	});
-
-	it("embeds rid in callout header at insertion time (no post-send patching)", async () => {
-		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r1" });
-		mockPollReply.mockResolvedValue({ ok: true, status: "pending" });
-
-		const plugin = makePlugin();
-		const editor = makeEditorWithLines([";;hello"]);
-
-		callSelectSuggestion(plugin, editor, "hello");
-
-		// Before sendPrompt resolves, the callout already has the rid
-		// Only 1 replaceRange call (insertion) — no subsequent rid-patching
-		expect(editor.replaceRange).toHaveBeenCalledTimes(1);
-		const insertCall = editor.replaceRange.mock.calls[0];
-		expect(insertCall[0]).toContain("<!-- rid:uuid-1 -->");
-		expect(insertCall[0]).toContain("> [!claude] hello");
-
-		await vi.advanceTimersByTimeAsync(0);
-
-		// After sendPrompt resolves — still only 1 replaceRange (no rid patch)
-		expect(editor.replaceRange).toHaveBeenCalledTimes(1);
-	});
-
-	it("does not patch rid on send failure", async () => {
-		mockSendPrompt.mockResolvedValue({ ok: false, error: "Connection refused" });
-
-		const plugin = makePlugin();
-		const editor = makeEditorWithLines([";;hello"]);
-
-		callSelectSuggestion(plugin, editor, "hello");
-
-		await vi.advanceTimersByTimeAsync(0);
-
-		// Call 1: insertion with rid, Call 2: error replacement (no rid in error callout)
-		expect(editor.replaceRange).toHaveBeenCalledTimes(2);
-		// First call (insertion) contains the rid
-		expect(editor.replaceRange.mock.calls[0][0]).toContain("<!-- rid:uuid-1 -->");
-		// Error replacement should NOT contain a rid marker
-		expect(editor.replaceRange.mock.calls[1][0]).not.toContain("<!-- rid:");
-	});
-
-	it("uses rid-based search for poll complete (callout moved away from nearLine)", async () => {
-		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r1" });
-		mockPollReply.mockResolvedValue({ ok: true, status: "complete", response: "The answer." });
-
-		const plugin = makePlugin();
-		const editor = makeEditorWithLines([";;hello"]);
-
-		callSelectSuggestion(plugin, editor, "hello");
-
-		// Flush the send
-		await vi.advanceTimersByTimeAsync(0);
-
-		// Verify rid was embedded at insertion time
-		expect(editor._data[0]).toContain("<!-- rid:uuid-1 -->");
-
-		// Advance to trigger poll
-		await vi.advanceTimersByTimeAsync(1000);
-
-		expect(plugin.activePollers.size).toBe(0);
-		const replaceCalls = editor.replaceRange.mock.calls;
-		const lastCall = replaceCalls[replaceCalls.length - 1];
-		expect(lastCall[0]).toContain("> [!claude-done]+");
-		expect(lastCall[0]).toContain("The answer.");
-	});
-
-	it("two concurrent questions resolve to correct callouts", async () => {
-		// Two separate sends with different request_ids
-		let sendCallCount = 0;
-		mockSendPrompt.mockImplementation(async () => {
-			sendCallCount++;
-			return { ok: true, request_id: sendCallCount === 1 ? "r1" : "r2" };
-		});
-
-		// Poll returns pending initially, then we control completion per-id
-		const completions = new Map<string, { status: string; response?: string }>();
-		completions.set("r1", { status: "pending" });
-		completions.set("r2", { status: "pending" });
-
-		mockPollReply.mockImplementation(async (_port: number, reqId: string) => {
-			const result = completions.get(reqId);
-			return { ok: true, ...result };
-		});
-
-		const plugin = makePlugin();
-
-		// Question 1: starts at line 0
-		const editor1 = makeEditorWithLines([";;question one"]);
-		callSelectSuggestion(plugin, editor1, "question one");
-		await vi.advanceTimersByTimeAsync(0);
-
-		// Verify rid uuid-1 was embedded at insertion
-		expect(editor1._data[0]).toContain("<!-- rid:uuid-1 -->");
-
-		// Question 2: different editor (simulating another location)
-		const editor2 = makeEditorWithLines([";;question two"]);
-		callSelectSuggestion(plugin, editor2, "question two");
-		await vi.advanceTimersByTimeAsync(0);
-
-		// Verify rid uuid-2 was embedded at insertion
-		expect(editor2._data[0]).toContain("<!-- rid:uuid-2 -->");
-
-		// Both pollers should be active (keyed by client rid)
-		expect(plugin.activePollers.size).toBe(2);
-
-		// Complete r2 first (out of order)
-		completions.set("r2", { status: "complete", response: "Answer to question two." });
-		await vi.advanceTimersByTimeAsync(1000);
-
-		// uuid-2's poller should be cancelled, uuid-1 still active
-		expect(plugin.activePollers.has("uuid-2")).toBe(false);
-		expect(plugin.activePollers.has("uuid-1")).toBe(true);
-
-		// Verify editor2 got the correct response
-		const lastCall2 = editor2.replaceRange.mock.calls[editor2.replaceRange.mock.calls.length - 1];
-		expect(lastCall2[0]).toContain("Answer to question two.");
-
-		// Now complete r1
-		completions.set("r1", { status: "complete", response: "Answer to question one." });
-		await vi.advanceTimersByTimeAsync(1000);
-
-		expect(plugin.activePollers.size).toBe(0);
-
-		// Verify editor1 got the correct response
-		const lastCall1 = editor1.replaceRange.mock.calls[editor1.replaceRange.mock.calls.length - 1];
-		expect(lastCall1[0]).toContain("Answer to question one.");
-	});
-
-	it("uses rid-based search for poll error handler", async () => {
-		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r1" });
-		mockPollReply.mockResolvedValue({ ok: false, error: "HTTP 500" });
-
-		const plugin = makePlugin();
-		const editor = makeEditorWithLines([";;hello"]);
-
-		callSelectSuggestion(plugin, editor, "hello");
-		await vi.advanceTimersByTimeAsync(0);
-
-		// Verify rid embedded at insertion
-		expect(editor._data[0]).toContain("<!-- rid:uuid-1 -->");
-
-		await vi.advanceTimersByTimeAsync(1000);
-
-		expect(plugin.activePollers.size).toBe(0);
-
-		const replaceCalls = editor.replaceRange.mock.calls;
-		const lastCall = replaceCalls[replaceCalls.length - 1];
-		expect(lastCall[0]).toContain("> [!claude] hello");
-		expect(lastCall[0]).toContain("⚠️ HTTP 500");
 	});
 
 	// --- No file writes during pending state (R023) ---
@@ -522,8 +340,7 @@ describe("selectSuggestion wiring", () => {
 		// Record replaceRange call count after insertion
 		const callsAfterInsertion = editor.replaceRange.mock.calls.length;
 
-		// Advance 15 seconds — in the OLD code this would trigger 3 elapsed-time writes
-		// In the NEW code, no file writes should happen during pending
+		// Advance 15 seconds — no file writes should happen during pending
 		await vi.advanceTimersByTimeAsync(15000);
 
 		// Find any calls with elapsed time markers — should be NONE
@@ -531,10 +348,7 @@ describe("selectSuggestion wiring", () => {
 		const elapsedCalls = allCalls.filter((call: any[]) => call[0].includes("⏱"));
 		expect(elapsedCalls.length).toBe(0);
 
-		// The only replaceRange call after insertion should be the terminal state (response)
-		const callsAfter15s = allCalls.length;
-		// At 15s with 1s polling, pollCount should reach 15. We set complete at 20, so
-		// we need to advance further to reach terminal state
+		// Advance further to reach terminal state
 		await vi.advanceTimersByTimeAsync(5000);
 
 		// Now terminal state should have fired
@@ -553,7 +367,7 @@ describe("selectSuggestion wiring", () => {
 		callSelectSuggestion(plugin, editor, "hello");
 		await vi.advanceTimersByTimeAsync(0);
 
-		// Advance to 125 seconds — in old code this would trigger warning text
+		// Advance to 125 seconds — should not trigger warning text
 		await vi.advanceTimersByTimeAsync(125000);
 
 		const allCalls = editor.replaceRange.mock.calls;
@@ -563,112 +377,6 @@ describe("selectSuggestion wiring", () => {
 
 		const elapsedCalls = allCalls.filter((call: any[]) => call[0].includes("⏱") && !call[0].includes("Timed out"));
 		expect(elapsedCalls.length).toBe(0);
-	});
-
-	// --- pendingRequests map lifecycle ---
-
-	it("pendingRequests map populated before insertion and cleaned after terminal state", async () => {
-		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r1" });
-		mockPollReply.mockResolvedValue({ ok: true, status: "complete", response: "Answer." });
-
-		const plugin = makePlugin();
-		const editor = makeEditorWithLines([";;hello"]);
-
-		// Before selectSuggestion — map empty
-		expect(plugin.pendingRequests.size).toBe(0);
-
-		callSelectSuggestion(plugin, editor, "hello");
-
-		// After selectSuggestion (synchronous part) — map has entry
-		expect(plugin.pendingRequests.size).toBe(1);
-		expect(plugin.pendingRequests.has("uuid-1")).toBe(true);
-		const entry = plugin.pendingRequests.get("uuid-1");
-		expect(entry.query).toBe("hello");
-		expect(entry.status).toBe("thinking");
-		expect(entry.nearLine).toBe(0);
-
-		// Flush send + poll
-		await vi.advanceTimersByTimeAsync(0);
-		await vi.advanceTimersByTimeAsync(1000);
-
-		// After terminal state — map cleaned
-		expect(plugin.pendingRequests.size).toBe(0);
-	});
-
-	it("pendingRequests cleaned on send failure", async () => {
-		mockSendPrompt.mockResolvedValue({ ok: false, error: "Connection refused" });
-
-		const plugin = makePlugin();
-		const editor = makeEditorWithLines([";;hello"]);
-
-		callSelectSuggestion(plugin, editor, "hello");
-
-		// Map populated synchronously
-		expect(plugin.pendingRequests.size).toBe(1);
-
-		await vi.advanceTimersByTimeAsync(0);
-
-		// Map cleaned after send failure
-		expect(plugin.pendingRequests.size).toBe(0);
-	});
-
-	it("pendingRequests cleaned on poll error", async () => {
-		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r1" });
-		mockPollReply.mockResolvedValue({ ok: false, error: "HTTP 500" });
-
-		const plugin = makePlugin();
-		const editor = makeEditorWithLines([";;hello"]);
-
-		callSelectSuggestion(plugin, editor, "hello");
-		expect(plugin.pendingRequests.size).toBe(1);
-
-		await vi.advanceTimersByTimeAsync(0);
-		await vi.advanceTimersByTimeAsync(1000);
-
-		expect(plugin.pendingRequests.size).toBe(0);
-	});
-
-	it("pendingRequests stays with error status on timeout", async () => {
-		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r1" });
-		mockPollReply.mockResolvedValue({ ok: true, status: "pending" });
-
-		const plugin = makePlugin({ pollingTimeoutSecs: 3 });
-		const editor = makeEditorWithLines([";;hello"]);
-
-		callSelectSuggestion(plugin, editor, "hello");
-		expect(plugin.pendingRequests.size).toBe(1);
-
-		await vi.advanceTimersByTimeAsync(0);
-		await vi.advanceTimersByTimeAsync(4000);
-
-		// After timeout, entry should STAY with error status (not be removed)
-		expect(plugin.pendingRequests.has("uuid-1")).toBe(true);
-		const entry = plugin.pendingRequests.get("uuid-1");
-		expect(entry.status).toBe("error");
-		expect(entry.retryable).toBe(true);
-		expect(entry.errorMessage).toContain("No response after");
-	});
-
-	it("pendingRequests cleaned on file switch", async () => {
-		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r1" });
-		mockPollReply.mockResolvedValue({ ok: true, status: "pending" });
-
-		const plugin = makePlugin({ activeFilePath: "test.md" });
-		const editor = makeEditorWithLines([";;hello"]);
-
-		callSelectSuggestion(plugin, editor, "hello");
-		expect(plugin.pendingRequests.size).toBe(1);
-
-		await vi.advanceTimersByTimeAsync(0);
-
-		// Simulate file switch
-		const differentFile = new TFile();
-		differentFile.path = "other.md";
-		plugin.app.workspace.getActiveFile = () => differentFile;
-
-		await vi.advanceTimersByTimeAsync(1000);
-
-		expect(plugin.pendingRequests.size).toBe(0);
 	});
 
 	// --- Cursor placement (R030) ---
@@ -699,177 +407,7 @@ describe("selectSuggestion wiring", () => {
 		// First replaceRange call is the insertion
 		const insertCall = editor.replaceRange.mock.calls[0];
 		const insertedText = insertCall[0];
-		// Should be: "> [!claude] hello <!-- rid:uuid-1 -->\n\n"
-		expect(insertedText).toMatch(/^> \[!claude\] hello <!-- rid:uuid-1 -->\n\n$/);
-	});
-
-	// --- Manual retry tests ---
-
-	it("retryRequest sends original query via sendPrompt", async () => {
-		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r-new" });
-		mockPollReply.mockResolvedValue({ ok: true, status: "pending" });
-
-		const plugin = makePlugin();
-		// Set up an error entry in pendingRequests
-		plugin.pendingRequests.set("err-1", {
-			query: "original question",
-			startTime: Date.now(),
-			status: "error",
-			nearLine: 0,
-			errorMessage: "No response after 5m 0s.",
-			retryable: true,
-		});
-		const editor = makeEditorWithLines([
-			"> [!claude] original question <!-- rid:err-1 -->",
-			"> ⚠️ No response after 5m 0s.",
-		]);
-		(plugin.app.workspace as any).activeEditor = { editor };
-
-		await retryRequest(plugin as any, "err-1");
-
-		expect(mockSendPrompt).toHaveBeenCalledOnce();
-		const call = mockSendPrompt.mock.calls[0];
-		expect(call[1].query).toBe("original question");
-		// Should NOT contain old retry prompt text
-		expect(call[1].query).not.toContain("timed out");
-	});
-
-	it("retryRequest creates new pending entry with retryOf link", async () => {
-		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r-new" });
-		mockPollReply.mockResolvedValue({ ok: true, status: "pending" });
-
-		const plugin = makePlugin();
-		plugin.pendingRequests.set("err-1", {
-			query: "my question",
-			startTime: Date.now(),
-			status: "error",
-			nearLine: 0,
-			errorMessage: "No response.",
-			retryable: true,
-		});
-		const editor = makeEditorWithLines([
-			"> [!claude] my question <!-- rid:err-1 -->",
-			"> ⚠️ No response.",
-		]);
-		(plugin.app.workspace as any).activeEditor = { editor };
-
-		await retryRequest(plugin as any, "err-1");
-
-		// Old entry should be removed
-		expect(plugin.pendingRequests.has("err-1")).toBe(false);
-
-		// New entry should exist with retryOf
-		expect(plugin.pendingRequests.size).toBe(1);
-		const [newRid, newEntry] = [...plugin.pendingRequests.entries()][0];
-		expect(newEntry.query).toBe("my question");
-		expect(newEntry.status).toBe("thinking");
-		expect(newEntry.retryOf).toBe("err-1");
-	});
-
-	it("retryRequest replaces error callout with new thinking header", async () => {
-		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r-new" });
-		mockPollReply.mockResolvedValue({ ok: true, status: "pending" });
-
-		const plugin = makePlugin();
-		plugin.pendingRequests.set("err-1", {
-			query: "my question",
-			startTime: Date.now(),
-			status: "error",
-			nearLine: 0,
-			errorMessage: "No response.",
-			retryable: true,
-		});
-		const editor = makeEditorWithLines([
-			"> [!claude] my question <!-- rid:err-1 -->",
-			"> ⚠️ No response.",
-		]);
-		(plugin.app.workspace as any).activeEditor = { editor };
-
-		await retryRequest(plugin as any, "err-1");
-
-		// editor.replaceRange should have been called with a new thinking header
-		expect(editor.replaceRange).toHaveBeenCalled();
-		const replaceCall = editor.replaceRange.mock.calls[0];
-		expect(replaceCall[0]).toContain("> [!claude] my question");
-		expect(replaceCall[0]).toContain("<!-- rid:");
-		// Should be a new rid, not the old one
-		expect(replaceCall[0]).not.toContain("rid:err-1");
-	});
-
-	it("retryRequest starts new poll loop", async () => {
-		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r-new" });
-		mockPollReply.mockResolvedValue({ ok: true, status: "pending" });
-
-		const plugin = makePlugin();
-		plugin.pendingRequests.set("err-1", {
-			query: "my question",
-			startTime: Date.now(),
-			status: "error",
-			nearLine: 0,
-			errorMessage: "No response.",
-			retryable: true,
-		});
-		const editor = makeEditorWithLines([
-			"> [!claude] my question <!-- rid:err-1 -->",
-			"> ⚠️ No response.",
-		]);
-		(plugin.app.workspace as any).activeEditor = { editor };
-
-		await retryRequest(plugin as any, "err-1");
-
-		// A new poller should be registered
-		expect(plugin.activePollers.size).toBe(1);
-		const [pollerRid] = [...plugin.activePollers.keys()];
-		expect(pollerRid).not.toBe("err-1"); // new rid, not the old one
-	});
-
-	it("retryRequest handles send failure gracefully", async () => {
-		mockSendPrompt.mockResolvedValue({ ok: false, error: "Connection refused" });
-
-		const plugin = makePlugin();
-		plugin.pendingRequests.set("err-1", {
-			query: "my question",
-			startTime: Date.now(),
-			status: "error",
-			nearLine: 0,
-			errorMessage: "No response.",
-			retryable: true,
-		});
-		const editor = makeEditorWithLines([
-			"> [!claude] my question <!-- rid:err-1 -->",
-			"> ⚠️ No response.",
-		]);
-		(plugin.app.workspace as any).activeEditor = { editor };
-
-		await retryRequest(plugin as any, "err-1");
-
-		// Pending entry should be removed (send failed)
-		expect(plugin.pendingRequests.size).toBe(0);
-
-		// No poller should be registered
-		expect(plugin.activePollers.size).toBe(0);
-
-		// Error callout should have been written
-		const replaceCalls = editor.replaceRange.mock.calls;
-		const errorCall = replaceCalls.find((call: any[]) => call[0].includes("Connection refused"));
-		expect(errorCall).toBeDefined();
-	});
-
-	it("retryRequest does nothing if entry is not in error state", async () => {
-		const plugin = makePlugin();
-		plugin.pendingRequests.set("thinking-1", {
-			query: "my question",
-			startTime: Date.now(),
-			status: "thinking",
-			nearLine: 0,
-		});
-
-		await retryRequest(plugin as any, "thinking-1");
-
-		// sendPrompt should NOT have been called
-		expect(mockSendPrompt).not.toHaveBeenCalled();
-
-		// Entry should still be there, untouched
-		expect(plugin.pendingRequests.has("thinking-1")).toBe(true);
+		// Should be: "> [!claude] hello\n\n"
+		expect(insertedText).toBe("> [!claude] hello\n\n");
 	});
 });
