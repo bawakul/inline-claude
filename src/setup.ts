@@ -4,7 +4,7 @@ import { execSync } from "child_process";
 import * as path from "path";
 import * as fs from "fs";
 
-const CLAUDE_MD_INSTRUCTIONS = `# Inline Claude — Channel Instructions
+export const CLAUDE_MD_INSTRUCTIONS = `# Inline Claude — Channel Instructions
 
 You are connected to an Obsidian vault via the inline-claude channel.
 

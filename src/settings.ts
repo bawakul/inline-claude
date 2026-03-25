@@ -2,7 +2,7 @@ import { App, Modal, PluginSettingTab, Setting, Notice } from "obsidian";
 import type ClaudeChatPlugin from "./main";
 import { spawn, execSync } from "child_process";
 import * as path from "path";
-import { findBunBinary } from "./setup";
+import { findBunBinary, CLAUDE_MD_INSTRUCTIONS } from "./setup";
 
 export interface ClaudeChatSettings {
 	triggerPhrase: string;
@@ -59,7 +59,7 @@ function findClaudeBinary(): string | null {
  * Confirmation modal shown before launching Claude Code with --dangerously-skip-permissions.
  * Forces the user to acknowledge what auto-approve means before proceeding.
  */
-class AutoApproveConfirmModal extends Modal {
+export class AutoApproveConfirmModal extends Modal {
 	private onConfirm: () => void;
 
 	constructor(app: App, onConfirm: () => void) {
@@ -89,6 +89,18 @@ class AutoApproveConfirmModal extends Modal {
 		});
 		list.createEl("li", {
 			text: "None of these actions will require your confirmation",
+		});
+
+		contentEl.createEl("p", {
+			text: "Before proceeding, review the files that shape Claude's behaviour in your vault:",
+		});
+
+		const reviewList = contentEl.createEl("ul");
+		reviewList.createEl("li", {
+			text: "CLAUDE.md — your vault root instructions (may include the plugin's @include line)",
+		});
+		reviewList.createEl("li", {
+			text: ".obsidian/plugins/inline-claude/CLAUDE.md — the plugin's channel instructions",
 		});
 
 		contentEl.createEl("p", {
@@ -229,7 +241,7 @@ export class ClaudeChatSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Response timeout (seconds)")
 			.setDesc(
-				"How long to wait before auto-retrying (default: 300). At 2 minutes a warning appears. At this timeout the plugin retries automatically. If the retry fails after 2 more minutes, it gives up."
+				"How long to wait for a response before showing a timeout error."
 			)
 			.addText((text) =>
 				text
@@ -243,6 +255,22 @@ export class ClaudeChatSettingTab extends PluginSettingTab {
 						}
 					})
 			);
+
+		containerEl.createEl("hr");
+
+		// --- Channel Instructions (CLAUDE.md) ---
+		containerEl.createEl("h3", { text: "Channel instructions (CLAUDE.md)" });
+		containerEl.createEl("p", {
+			text: "These instructions are written to .obsidian/plugins/inline-claude/CLAUDE.md and shape how Claude behaves when responding to your questions. Your vault root CLAUDE.md includes them via an @include line.",
+			cls: "setting-item-description",
+		});
+
+		const pre = containerEl.createEl("pre", {
+			cls: "inline-claude-instructions",
+		});
+		pre.createEl("code", {
+			text: CLAUDE_MD_INSTRUCTIONS.trim(),
+		});
 	}
 
 	hide(): void {

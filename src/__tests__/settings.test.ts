@@ -33,6 +33,7 @@ function createMockElement(tag = "div", attrs?: { text?: string; cls?: string })
 		_text: attrs?.text ?? "",
 		_cls: attrs?.cls ?? "",
 		_children: children,
+		_listeners: {} as Record<string, Function[]>,
 		empty() {
 			children.length = 0;
 			el._text = "";
@@ -42,8 +43,15 @@ function createMockElement(tag = "div", attrs?: { text?: string; cls?: string })
 			children.push(child);
 			return child;
 		},
+		createDiv(divAttrs?: { cls?: string }) {
+			return el.createEl("div", divAttrs);
+		},
 		setText(text: string) {
 			el._text = text;
+		},
+		addEventListener(event: string, cb: Function) {
+			if (!el._listeners[event]) el._listeners[event] = [];
+			el._listeners[event].push(cb);
 		},
 	};
 	return el;
@@ -252,6 +260,69 @@ describe("ClaudeChatSettingTab", () => {
 			const allText = collectText(statusEl);
 			expect(allText).toContain("Connected to Claude Code");
 			expect(allText).toContain("Bun is not installed");
+		});
+	});
+
+	describe("Channel instructions display", () => {
+		it("shows CLAUDE.md instructions in a pre/code block", async () => {
+			mockExecSync.mockReturnValue("/usr/local/bin/bun\n");
+
+			const { ClaudeChatSettingTab } = await import("../settings");
+			const { App } = await import("obsidian");
+
+			const app = new App();
+			const plugin = createMockPlugin();
+
+			const tab = new ClaudeChatSettingTab(app, plugin);
+			(tab as any).containerEl = createMockElement();
+
+			tab.display();
+
+			const container = (tab as any).containerEl;
+			const allText = collectText(container);
+
+			// Should contain the section heading
+			expect(allText).toContain("Channel instructions (CLAUDE.md)");
+
+			// Should contain the description
+			expect(allText).toContain("shape how Claude behaves");
+
+			// Should contain content from the actual CLAUDE_MD_INSTRUCTIONS
+			expect(allText).toContain("Always reply");
+			expect(allText).toContain("Read the file first");
+
+			// Should have a <pre> with a <code> child
+			const preEl = findInTree(container, (n: any) => n._tag === "pre" && n._cls === "inline-claude-instructions");
+			expect(preEl).not.toBeNull();
+			const codeEl = findInTree(preEl, (n: any) => n._tag === "code");
+			expect(codeEl).not.toBeNull();
+			expect(codeEl._text).toContain("Inline Claude");
+		});
+	});
+
+	describe("Auto-approve confirmation modal", () => {
+		it("includes CLAUDE.md review reminder", async () => {
+			const { AutoApproveConfirmModal } = await import("../settings");
+			const { App } = await import("obsidian");
+
+			const app = new App();
+			const modal = new AutoApproveConfirmModal(app, () => {});
+
+			// Replace contentEl with our mock DOM
+			(modal as any).contentEl = createMockElement();
+
+			modal.onOpen();
+
+			const allText = collectText((modal as any).contentEl);
+
+			// Should still have the original warnings
+			expect(allText).toContain("--dangerously-skip-permissions");
+			expect(allText).toContain("read and write any file");
+
+			// Should contain the CLAUDE.md review reminder
+			expect(allText).toContain("review the files that shape Claude");
+			expect(allText).toContain("CLAUDE.md");
+			expect(allText).toContain("channel instructions");
 		});
 	});
 });

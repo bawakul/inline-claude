@@ -7,3 +7,15 @@
   --callout-color: 180, 180, 180;
   --callout-icon: loader;
 }
+
+.inline-claude-instructions {
+  max-height: 300px;
+  overflow-y: auto;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  padding: 12px;
+  font-size: var(--font-smallest);
+  white-space: pre-wrap;
+  margin-top: 8px;
+}
