@@ -3,7 +3,7 @@
 	"name": "Inline Claude",
 	"version": "0.1.7",
 	"minAppVersion": "1.0.0",
-	"description": "Ask Claude questions inline while writing. Type ;; to trigger, get responses as native callout blocks.",
+	"description": "Chat with Claude Code inline in your notes. Type ;; to ask questions, create files, use MCP servers, and modify your vault — all from where you're writing.",
 	"author": "Bawa's Lab",
 	"authorUrl": "https://github.com/bawakul",
 	"fundingUrl": "https://ko-fi.com/bawakul",
