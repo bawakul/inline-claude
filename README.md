@@ -1,88 +1,75 @@
 # Inline Claude
 
-Talk to Claude Code directly inside your Obsidian notes. Type `;;`, write your question, press Enter — the response appears as a callout block right where you're writing.
+Chat with Claude inline in your Obsidian notes — type `;;` and get responses as native callout blocks.
 
-No sidebar. No separate window. The conversation stays in your vault, exactly where it's relevant.
+But it's not just Q&A. Because [Claude Code](https://docs.anthropic.com/en/docs/claude-code) is the backend, everything it can do is available from inside your note: create and link files, search your vault, talk to MCP servers (Are.na, Notion, APIs...), generate diagrams, even modify the plugin itself while you're using it.
 
-## ⚠️ Read This First
+No sidebar. No chat window. No context-switching.
 
-This plugin gives Claude Code access to your vault and filesystem. You should understand exactly what that means before installing.
+## The idea
 
-**What happens when you ask a question:**
+Most AI tools put you in the passenger seat. You leave your work, open a chat, explain what you're doing, get an answer, copy it back. The AI drives. You're along for the ride.
 
-1. The plugin sends your question + the current filename and line number to a local channel server (HTTP on localhost)
-2. The channel server forwards it to Claude Code over MCP (stdin/stdout)
-3. Claude Code reads your file, processes context, and generates a response
-4. The response comes back through the same chain and appears as a callout block
+Inline Claude flips that. You're writing — your thoughts, your notes, your flow — and Claude is just *there* when you need it. You stay in the driver's seat. The AI fits into your environment, not the other way around.
 
-**What Claude Code can do:**
-
-- Read any file on your filesystem (not just your vault)
-- Write and modify files
-- Execute shell commands (if you start with `--dangerously-skip-permissions`)
-- Access any MCP servers you have configured
-
-**What the plugin itself does:**
-
-- Sends your typed query to localhost
-- Polls for a response
-- Writes the response as a callout block in your note
-- The plugin never composes, modifies, or injects instructions into your query — it sends exactly what you typed, nothing more
-
-**What the plugin does NOT do:**
-
-- No telemetry, no analytics, no external network calls (all communication is localhost)
-- No background processing — every interaction is user-initiated via the `;;` trigger
-- No prompt engineering on your behalf — the plugin is a transparent pipe between you and Claude Code
-
-> **If you wouldn't run Claude Code in a directory, don't use this plugin in that directory.**
-
-## Why
-
-Most AI integrations put the conversation somewhere else — a sidebar, a separate app, a chat window. You write in one place and talk to AI in another.
-
-Inline Claude keeps everything in the note. You're writing, you have a question, you type `;;` and ask. The answer appears below your cursor. Previous Q&A blocks stay in the document as context, so the note itself becomes the conversation.
+And because the plugin is open and simple, you can reshape it while you're using it. Ask Claude to change callout colours, add features, fix bugs — from inside the note you're working in. That's [malleable software](https://www.geoffreylitt.com/2023/03/25/llm-end-user-programming.html) — the tool changes shape to fit you, not the other way around.
 
 ## How it works
 
 1. Type `;;` anywhere in a note
-2. A dropdown appears — write your question and press Enter
-3. A `> [!claude] Thinking...` callout appears with a live timer
-4. Claude Code reads your file, sees the surrounding context, and responds
-5. The callout becomes a collapsible `> [!claude-done]+` block with the answer
+2. Write your question in the dropdown and press Enter
+3. A callout appears with a spinner while Claude thinks
+4. Claude reads your file, sees the surrounding context, and responds
+5. The callout turns green with the answer, collapsible so it stays out of your way
 
-If a response times out, you'll see an error callout with a **Retry** button. Retry re-sends your exact original query — nothing is added or modified.
+Follow-up questions work naturally — Claude sees previous Q&A blocks as context. The note itself becomes the conversation.
 
-Claude sees previous callout blocks in your note, so follow-up questions work naturally.
+### Architecture
+
+```
+You (Obsidian) → Plugin → Channel Server (localhost) → Claude Code → back
+```
+
+Everything stays on your machine. The plugin talks to a local channel server over HTTP, which forwards to Claude Code over MCP. No cloud relay, no external calls (unless Claude Code itself makes them, e.g. the Anthropic API).
 
 ## What you can do with it
 
-Because Claude Code runs as the backend, it has full access to your vault and filesystem. This means you're not limited to Q&A:
+Because Claude Code is the backend, you're not limited to Q&A:
 
-- **Create and link notes** — ask Claude to make a note and link it where you are
-- **Read and modify files** — Claude can check plugin configs, edit settings, search your vault
-- **Use MCP servers** — anything connected to Claude Code (Are.na, databases, APIs) is available inline
-- **Modify the plugin itself** — since the source is in your vault, Claude can update callout styles, fix bugs, or add features on the fly
+- **Read and write your vault** — create notes, search across files, link things together
+- **Use your MCP servers** — anything connected to Claude Code (Are.na, Notion, databases, APIs) is available inline
+- **Modify the plugin itself** — the source is in your vault, Claude can update styles, fix bugs, add features on the fly
+- **Generate rich content** — Mermaid diagrams, slide decks, structured reports, all inline
 
-## Security Model
+## ⚠️ Security & trust model
 
-**Trust boundary:** The plugin trusts that you control what runs on localhost. All communication happens over `http://localhost:{port}`. No data leaves your machine unless Claude Code itself makes external calls (e.g., Anthropic API, MCP servers you've configured).
+**Be honest with yourself about what this is.** This plugin gives Claude Code access to your vault and filesystem. You should understand exactly what that means.
 
-**The plugin is a transparent pipe.** It sends your query verbatim. It does not:
-- Prepend system prompts or instructions
-- Append context, metadata, or hidden instructions
-- Modify the response before rendering
-- Retry with different/augmented queries
+**The plugin is a transparent pipe.** It sends your query verbatim to Claude Code and renders the response. It does not inject system prompts, append hidden instructions, or modify anything in transit.
 
-**Prompt injection surface:** The plugin does not compose prompts, so it cannot be used as a prompt injection vector. The retry mechanism re-sends the original query exactly. If you see a response that seems wrong, it came from Claude Code, not from the plugin manipulating the prompt.
+**What Claude Code can do:**
+- Read any file on your filesystem (not just your vault)
+- Write and modify files
+- Execute shell commands (if started with `--dangerously-skip-permissions`)
+- Access any MCP servers you have configured
 
-**Filesystem access:** Claude Code (not the plugin) has filesystem access. The plugin itself only reads/writes callout blocks in the current note. However, the channel server and Claude Code run with your user permissions. Starting Claude Code with `--dangerously-skip-permissions` means it can read, write, and execute without asking.
+**What the plugin does NOT do:**
+- No telemetry, no analytics, no external network calls
+- No background processing — every interaction is user-initiated
+- No hidden instructions — the only prompt shaping is the [CLAUDE.md](https://github.com/bawakul/inline-claude/blob/main/src/setup.ts#L7-L28) you can read and modify
 
 **What could go wrong:**
-- If someone gains access to localhost on the channel port, they can send queries to Claude Code as you
-- If you start with `--dangerously-skip-permissions`, Claude Code can execute arbitrary commands without confirmation
-- The `CLAUDE.md` file in your vault shapes Claude's behavior — a malicious file there could influence responses
-- Callout blocks from previous conversations are visible to Claude as context — sensitive content in old callouts will be sent to Claude when you ask new questions in the same note
+- A note containing malicious instructions (from a web clipper, shared vault, or imported content) could influence Claude's behaviour when you ask questions in that note
+- The `CLAUDE.md` file shapes Claude's behaviour — a tampered file could alter responses
+- Starting with `--dangerously-skip-permissions` means Claude executes without asking
+- If someone gains access to the channel port on localhost, they can send queries as you
+
+**Prompt injection is a real risk.** Any text that enters your vault — web clips, imports, shared notes — could contain instructions that Claude follows. This is not unique to this plugin (it's inherent to LLMs reading untrusted text), but the combination of inline access + filesystem permissions makes the surface area worth understanding.
+
+> [!IMPORTANT]
+> **On channel plugins generally:** Claude Code Channels are in research preview, and plugins like this one are going to become more common as the feature matures. If you're evaluating any plugin that bridges an app to Claude Code, review it thoroughly — read the source, understand what permissions it requests, and check what it sends over the channel. Don't install channel-based plugins you haven't inspected.
+
+> **If you wouldn't run Claude Code in a directory, don't use this plugin in that directory.**
 
 ## Requirements
 
@@ -99,22 +86,29 @@ Because Claude Code runs as the backend, it has full access to your vault and fi
 Install [BRAT](https://github.com/TfTHacker/obsidian42-brat) and add `bawakul/inline-claude` as a beta plugin.
 
 **Manual:**
-Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/bawakul/inline-claude/releases) and place them in `.obsidian/plugins/inline-claude/` in your vault.
+Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/bawakul/inline-claude/releases) into `.obsidian/plugins/inline-claude/`.
 
-### 2. Enable the plugin
+### 2. Enable it
 
 Settings → Community plugins → enable **Inline Claude**.
 
-The plugin automatically sets up the channel server config (`.mcp.json`) and Claude instructions (`CLAUDE.md`) on first load. If you already have these files, it adds its entries without overwriting your existing config.
+### What the plugin writes to your vault
+
+On first load, the plugin creates three configuration files:
+
+- **`.mcp.json`** — registers the channel server so Claude Code can connect. If you already have an `.mcp.json`, the plugin adds its entry alongside your existing servers.
+- **`.obsidian/plugins/inline-claude/CLAUDE.md`** — instructions that tell Claude Code how to handle your questions (always reply, read the file first, be concise). The vault root `CLAUDE.md` gets an `@include` line pointing to this file.
+- **`channel.js`** — the channel server script. If missing (common with BRAT installs), the plugin downloads it from the [GitHub release](https://github.com/bawakul/inline-claude/releases) matching your installed version.
+
+**The CLAUDE.md instructions shape how Claude behaves when responding to your questions.** [Read them before installing](https://github.com/bawakul/inline-claude/blob/main/src/setup.ts#L7-L28) — they're defined in `setup.ts` and written verbatim, nothing hidden.
+
+If you already have a `CLAUDE.md` with your own instructions, the plugin appends the include line without overwriting anything.
 
 ### 3. Start Claude Code
 
-Open the plugin settings. You'll see two options:
+Open plugin settings → **Start (safe mode)** or **Start (auto-approve)**.
 
-- **Start (safe mode)** — Claude asks for permission before running tools. This is the recommended mode.
-- **Start (auto-approve)** — Uses `--dangerously-skip-permissions`. Claude won't ask before reading, writing, or running commands. A confirmation dialog will appear before launching. **Understand what this means before accepting.**
-
-Both open a terminal window. Keep it running — Claude Code is now listening for your questions.
+Safe mode asks for permission before Claude runs tools. Auto-approve (`--dangerously-skip-permissions`) does not — a confirmation dialog explains the implications.
 
 Or start manually:
 
@@ -123,45 +117,28 @@ cd /path/to/your/vault
 claude --dangerously-load-development-channels server:inline-claude
 ```
 
-Add `--dangerously-skip-permissions` only if you understand that Claude Code will execute without asking.
-
 ### 4. Type `;;` in any note
 
-That's it. Ask away.
+That's it.
 
 ## Settings
 
 | Setting | Default | Description |
 |---------|---------|-------------|
 | Trigger phrase | `;;` | Text that opens the question dropdown |
-| Channel port | `4321` | Port the channel server listens on. Use a different port per vault. |
-| Response timeout | `300` | Max seconds to wait for a response before showing an error with a Retry button |
-
-## Architecture
-
-```
-Obsidian Plugin                Channel Server              Claude Code
-     |                              |                          |
-     |-- POST /prompt ------------->|                          |
-     |   {filename, line, query}    |-- MCP channel event ---->|
-     |                              |                          |
-     |                              |                          |-- reads file
-     |                              |                          |-- processes context
-     |                              |                          |
-     |                              |<-- reply tool -----------|
-     |                              |   {request_id, text}     |
-     |<-- GET /poll/:id ------------|                          |
-     |   {status, response}         |                          |
-     v                              v                          v
-  Replaces placeholder
-  with response callout
-```
-
-All communication is localhost. The plugin talks to the channel server over HTTP. The channel server talks to Claude Code over MCP via stdio. Claude Code receives questions as channel events and responds using the `reply` tool.
+| Channel port | `4321` | Port for the channel server. Use a different port per vault. |
+| Response timeout | `300` | Seconds to wait before showing a timeout error |
 
 ## Multiple vaults
 
-Each vault needs its own channel port. Change the port in the plugin settings — the `.mcp.json` updates automatically.
+Each vault needs its own port. Change it in plugin settings — the `.mcp.json` updates automatically.
+
+## Acknowledgements
+
+- Built with [Claude Code Channels](https://docs.anthropic.com/en/docs/claude-code) (research preview) and [GSD](https://github.com/gsd-build/gsd-2)
+- The `;;` trigger UI is inspired by the [Natural Language Dates](https://github.com/argenos/nldates-obsidian) plugin
+- The Obsidian theme in the demo video is [Typewriter](https://github.com/crashmoney/obsidian-typewriter)
+- This plugin was vibe-coded — I'm not a developer by trade. The code works, but it may not be structured the way an experienced developer would do it. Feedback and contributions are welcome.
 
 ## License
 
