@@ -101,36 +101,22 @@ describe("findCalloutRange", () => {
 		expect(result).toEqual({ from: 1, to: 2 });
 	});
 
-	it("finds callout shifted +5 lines from nearLine", () => {
+	it("finds callout far from nearLine (full-document scan)", () => {
 		const lines = [
 			"line 0",
 			"line 1",
 			"line 2",
-			"line 3",
-			"line 4",
-			"line 5",
+			...Array(50).fill("filler"),
 			"> [!claude] Thinking...",
 			"> response here",
 			"",
 		];
+		// Callout is at line 53, nearLine is 1 — old ±10 would miss this
 		const result = findCalloutRange(makeEditor(lines), 1);
-		expect(result).toEqual({ from: 6, to: 7 });
+		expect(result).toEqual({ from: 53, to: 54 });
 	});
 
-	it("finds callout shifted -5 lines from nearLine", () => {
-		const lines = [
-			"> [!claude] Thinking...",
-			"> some content",
-			"",
-			"line 3",
-			"line 4",
-			"line 5",
-		];
-		const result = findCalloutRange(makeEditor(lines), 5);
-		expect(result).toEqual({ from: 0, to: 1 });
-	});
-
-	it("returns null when no callout in range", () => {
+	it("returns null when no callout in document", () => {
 		const lines = ["no callout here", "just text", "more text"];
 		const result = findCalloutRange(makeEditor(lines), 1);
 		expect(result).toBeNull();
@@ -166,29 +152,47 @@ describe("findCalloutBlock", () => {
 		} as any;
 	}
 
-	it("uses proximity search when nearLine is provided", () => {
+	it("finds callout by query text", () => {
 		const lines = [
-			"> [!claude] Thinking...",
+			"> [!claude] What is gravity?",
 			"> some content",
 			"",
 		];
-		const result = findCalloutBlock(makeEditor(lines), undefined, 0);
+		const result = findCalloutBlock(makeEditor(lines), "What is gravity?", 0);
 		expect(result).toEqual({ from: 0, to: 1 });
 	});
 
-	it("returns null when no nearLine and no callout found", () => {
-		const lines = ["no callout here", "just text"];
-		const result = findCalloutBlock(makeEditor(lines), undefined, 50);
+	it("finds correct callout when multiple exist", () => {
+		const lines = [
+			"> [!claude-done]+ What is gravity?",
+			"> **Claude:** It's a force",
+			"",
+			"> [!claude] What is entropy?",
+			"> pending",
+			"",
+		];
+		const result = findCalloutBlock(makeEditor(lines), "What is entropy?", 0);
+		expect(result).toEqual({ from: 3, to: 4 });
+	});
+
+	it("returns null when query doesn't match any callout", () => {
+		const lines = [
+			"> [!claude] What is gravity?",
+			"> some content",
+		];
+		const result = findCalloutBlock(makeEditor(lines), "What is entropy?", 0);
 		expect(result).toBeNull();
 	});
 
-	it("returns null when called with no nearLine", () => {
+	it("finds callout anywhere in document regardless of nearLine", () => {
 		const lines = [
-			"> [!claude] Thinking...",
+			...Array(100).fill("filler"),
+			"> [!claude] my question",
 			"> content",
+			"",
 		];
-		const result = findCalloutBlock(makeEditor(lines));
-		expect(result).toBeNull();
+		const result = findCalloutBlock(makeEditor(lines), "my question", 0);
+		expect(result).toEqual({ from: 100, to: 101 });
 	});
 });
 

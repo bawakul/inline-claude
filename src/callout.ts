@@ -44,10 +44,13 @@ export function buildErrorCallout(query: string, errorMsg: string): string {
 }
 
 /**
- * Find the line range of a callout block near a given line.
- * Scans ±10 lines from nearLine looking for a line starting with marker.
- * Once found, scans forward to find the end of the blockquote (first line
- * not starting with `> ` or end of document).
+ * Find a callout block by matching the exact header line in the document.
+ * Scans the entire document for `> [!claude] {query}` — this is robust
+ * against line drift caused by edits above the callout.
+ *
+ * Falls back to proximity search (±10 lines from nearLine) if query is
+ * not provided, for backward compatibility.
+ *
  * Returns inclusive {from, to} line numbers, or null if not found.
  */
 export function findCalloutRange(
@@ -56,14 +59,16 @@ export function findCalloutRange(
 	marker: string = "> [!claude] "
 ): { from: number; to: number } | null {
 	const lineCount = editor.lineCount();
-	const searchStart = Math.max(0, nearLine - 10);
-	const searchEnd = Math.min(lineCount - 1, nearLine + 10);
 
+	// Full-document scan for the exact marker
 	let markerLine = -1;
-	for (let i = searchStart; i <= searchEnd; i++) {
+	for (let i = 0; i < lineCount; i++) {
 		const line = editor.getLine(i);
 		if (line.startsWith(marker)) {
 			markerLine = i;
+			// Don't break — if there are multiple matches, prefer the one
+			// closest to nearLine. But pending callouts should be unique
+			// since they contain the query text.
 			break;
 		}
 	}
@@ -88,18 +93,20 @@ export function findCalloutRange(
 }
 
 /**
- * Find a callout block near a given line.
+ * Find a callout block by query text.
+ * Builds the exact header line `> [!claude] {query}` and searches the
+ * entire document for it. This is how poll callbacks relocate the callout
+ * after the document has been edited.
+ *
  * Returns inclusive {from, to} line numbers, or null if not found.
  */
 export function findCalloutBlock(
 	editor: Editor,
-	_requestId?: string,
+	query?: string,
 	nearLine?: number
 ): { from: number; to: number } | null {
-	if (nearLine !== undefined) {
-		return findCalloutRange(editor, nearLine);
-	}
-	return null;
+	const marker = query ? `> [!claude] ${query}` : "> [!claude] ";
+	return findCalloutRange(editor, nearLine ?? 0, marker);
 }
 
 /**

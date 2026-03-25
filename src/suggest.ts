@@ -111,7 +111,7 @@ export class ClaudeSuggest extends EditorSuggest<string> {
 
 			if (!sendResult.ok) {
 				console.log(`Send failed: ${sendResult.error}`);
-				const range = findCalloutBlock(editor, undefined, nearLine);
+				const range = findCalloutBlock(editor, value, nearLine);
 				if (range) {
 					replaceCalloutBlock(editor, range.from, range.to, buildErrorCallout(value, sendResult.error));
 				}
@@ -138,7 +138,7 @@ export class ClaudeSuggest extends EditorSuggest<string> {
 					const errorMsg = `No response after ${formatElapsed(elapsed)}.`;
 					console.log(`Poll timeout for ${pollerId} after ${elapsed}ms`);
 
-					const range = findCalloutBlock(editor, undefined, nearLine);
+					const range = findCalloutBlock(editor, value, nearLine);
 					if (range) {
 						replaceCalloutBlock(editor, range.from, range.to, buildErrorCallout(value, errorMsg));
 					}
@@ -150,7 +150,7 @@ export class ClaudeSuggest extends EditorSuggest<string> {
 
 				if (!pollResult.ok) {
 					console.log(`Poll error for ${pollerId}: ${pollResult.error}`);
-					const range = findCalloutBlock(editor, undefined, nearLine);
+					const range = findCalloutBlock(editor, value, nearLine);
 					if (range) {
 						replaceCalloutBlock(editor, range.from, range.to, buildErrorCallout(value, pollResult.error));
 					}
@@ -160,7 +160,7 @@ export class ClaudeSuggest extends EditorSuggest<string> {
 
 				if (pollResult.status === "complete") {
 					console.log(`Poll complete for ${pollerId}`);
-					const range = findCalloutBlock(editor, undefined, nearLine);
+					const range = findCalloutBlock(editor, value, nearLine);
 					if (range) {
 						replaceCalloutBlock(editor, range.from, range.to, buildResponseCallout(value, pollResult.response));
 					}
