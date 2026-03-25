@@ -3,26 +3,21 @@ import type { Editor, EditorPosition } from "obsidian";
 /**
  * Build a single-line callout header with the user's prompt as the title.
  * The prompt IS the title — no body lines are generated.
- * When requestId is provided, a `<!-- rid:UUID -->` marker is appended
- * to the header line for ID-based callout matching.
  */
-export function buildCalloutHeader(query: string, requestId?: string): string {
-	const rid = requestId ? ` <!-- rid:${requestId} -->` : "";
-	return `> [!claude] ${query}${rid}`;
+export function buildCalloutHeader(query: string): string {
+	return `> [!claude] ${query}`;
 }
 
 /**
  * Replace a range in the editor with a callout header.
- * When requestId is provided, it's embedded as a rid marker in the header.
  */
 export function insertCallout(
 	editor: Editor,
 	from: EditorPosition,
 	to: EditorPosition,
-	content: string,
-	requestId?: string
+	content: string
 ): void {
-	editor.replaceRange(buildCalloutHeader(content, requestId), from, to);
+	editor.replaceRange(buildCalloutHeader(content), from, to);
 }
 
 /**
@@ -93,64 +88,17 @@ export function findCalloutRange(
 }
 
 /**
- * Find a callout block by its embedded request ID (`<!-- rid:UUID -->`).
- * Scans ALL lines in the document (not limited to ±10 like proximity search).
+ * Find a callout block near a given line.
  * Returns inclusive {from, to} line numbers, or null if not found.
- */
-export function findCalloutRangeById(
-	editor: Editor,
-	requestId: string
-): { from: number; to: number } | null {
-	const lineCount = editor.lineCount();
-	const needle = `<!-- rid:${requestId} -->`;
-
-	let markerLine = -1;
-	for (let i = 0; i < lineCount; i++) {
-		if (editor.getLine(i).includes(needle)) {
-			markerLine = i;
-			break;
-		}
-	}
-
-	if (markerLine === -1) {
-		return null;
-	}
-
-	// Scan forward to find end of blockquote block.
-	let endLine = markerLine;
-	for (let i = markerLine + 1; i < lineCount; i++) {
-		if (editor.getLine(i).startsWith(">")) {
-			endLine = i;
-		} else {
-			break;
-		}
-	}
-
-	return { from: markerLine, to: endLine };
-}
-
-/**
- * Unified callout finder: tries ID-based search first, then falls back
- * to proximity search. Returns inclusive {from, to} line numbers, or null.
  */
 export function findCalloutBlock(
 	editor: Editor,
-	requestId?: string,
+	_requestId?: string,
 	nearLine?: number
 ): { from: number; to: number } | null {
-	// Try ID-based search first when a requestId is available.
-	if (requestId) {
-		const byId = findCalloutRangeById(editor, requestId);
-		if (byId) {
-			return byId;
-		}
-	}
-
-	// Fall back to proximity search when available.
 	if (nearLine !== undefined) {
 		return findCalloutRange(editor, nearLine);
 	}
-
 	return null;
 }
 
