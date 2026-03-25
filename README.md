@@ -72,6 +72,8 @@ Because Claude Code is the backend, you're not limited to Q&A:
 > [!IMPORTANT]
 > **On channel plugins generally:** Claude Code Channels are in research preview, and plugins like this one are going to become more common as the feature matures. If you're evaluating any plugin that bridges an app to Claude Code, review it thoroughly — read the source, understand what permissions it requests, and check what it sends over the channel. Don't install channel-based plugins you haven't inspected.
 
+**This plugin was vibe-coded** — I'm not a developer by trade. The code works, but it may not be structured the way an experienced developer would do it. Feedback and contributions are welcome.
+
 > **If you wouldn't run Claude Code in a directory, don't use this plugin in that directory.**
 
 ## Requirements
@@ -141,7 +143,6 @@ Each vault needs its own port. Change it in plugin settings — the `.mcp.json` 
 - Built with [Claude Code Channels](https://docs.anthropic.com/en/docs/claude-code) (research preview) and [GSD](https://github.com/gsd-build/gsd-2)
 - The `;;` trigger UI is inspired by the [Natural Language Dates](https://github.com/argenos/nldates-obsidian) plugin
 - The Obsidian theme in the demo video is [Typewriter](https://github.com/crashmoney/obsidian-typewriter)
-- This plugin was vibe-coded — I'm not a developer by trade. The code works, but it may not be structured the way an experienced developer would do it. Feedback and contributions are welcome.
 
 ## License
 
