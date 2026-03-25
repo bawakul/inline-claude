@@ -4,7 +4,7 @@
 	"version": "0.1.8",
 	"minAppVersion": "1.0.0",
 	"description": "Chat with Claude Code inline in your notes. Type ;; to ask questions, create files, use MCP servers, and modify your vault.",
-	"author": "Bawa's Lab",
+	"author": "Bawa Kulkarni",
 	"authorUrl": "https://github.com/bawakul",
 	"fundingUrl": "https://ko-fi.com/bawakul",
 	"isDesktopOnly": true
