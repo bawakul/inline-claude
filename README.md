@@ -6,6 +6,8 @@ But it's not just Q&A. Because [Claude Code](https://docs.anthropic.com/en/docs/
 
 No sidebar. No chat window. No context-switching.
 
+https://github.com/user-attachments/assets/95815cf3-e0f0-42ce-906b-decce4a11598
+
 > [!WARNING]
 > This plugin gives Claude Code access to your vault and filesystem. Please read the [Security & trust model](#%EF%B8%8F-security--trust-model) section before installing.
 
