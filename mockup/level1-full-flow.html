@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inline Claude — Level 1 Full Flow</title>
+<style>
+  :root {
+    --bg-primary: #1e1e1e;
+    --bg-callout: #2a2a2a;
+    --text-normal: #dcddde;
+    --text-muted: #999;
+    --text-faint: #666;
+    --border-color: #383838;
+    --callout-gray: rgba(180, 180, 180, 0.15);
+    --callout-gray-border: rgba(180, 180, 180, 0.4);
+    --callout-amber: rgba(220, 170, 50, 0.15);
+    --callout-amber-border: rgba(220, 170, 50, 0.5);
+    --callout-green: rgba(100, 180, 100, 0.15);
+    --callout-green-border: rgba(100, 180, 100, 0.4);
+    --callout-red: rgba(220, 80, 80, 0.12);
+    --callout-red-border: rgba(220, 80, 80, 0.5);
+    --callout-orange: rgba(220, 140, 50, 0.12);
+    --callout-orange-border: rgba(220, 140, 50, 0.5);
+    --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+    --font-text: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font-text);
+    background: var(--bg-primary);
+    color: var(--text-normal);
+    padding: 40px;
+    line-height: 1.6;
+  }
+
+  h1 { font-size: 24px; font-weight: 600; margin-bottom: 8px; color: #eee; }
+  .subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 40px; }
+
+  .state-section { margin-bottom: 48px; }
+  .state-header { font-size: 15px; font-weight: 600; color: #ccc; margin-bottom: 4px; }
+  .state-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 14px; }
+
+  .callout-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 560px;
+  }
+
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 40px 0;
+  }
+
+  .note {
+    font-size: 12px;
+    color: var(--text-faint);
+    margin-top: 8px;
+    font-style: italic;
+  }
+
+  .flow-arrow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-faint);
+    font-size: 12px;
+    margin: 8px 0 8px 16px;
+  }
+
+  .flow-arrow::before {
+    content: '↓';
+    font-size: 16px;
+  }
+
+  /* ─── Base callout ─── */
+
+  .callout {
+    border-left: 3px solid var(--callout-gray-border);
+    background: var(--callout-gray);
+    border-radius: 4px;
+    padding: 12px 16px;
+    font-size: 14px;
+    transition: background 0.6s ease, border-color 0.6s ease;
+  }
+
+  .callout.warning {
+    background: var(--callout-amber);
+    border-left-color: var(--callout-amber-border);
+  }
+
+  .callout.done {
+    background: var(--callout-green);
+    border-left-color: var(--callout-green-border);
+  }
+
+  .callout.timed-out {
+    background: var(--callout-orange);
+    border-left-color: var(--callout-orange-border);
+  }
+
+  .callout.error {
+    background: var(--callout-red);
+    border-left-color: var(--callout-red-border);
+  }
+
+  .callout-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-weight: 500;
+    font-size: 14px;
+    color: #bbb;
+  }
+
+  .callout-header .icon { width: 18px; height: 18px; flex-shrink: 0; }
+
+  .callout-body { color: var(--text-normal); font-size: 14px; }
+  .callout-body .query { margin-bottom: 10px; }
+
+  /* ─── Icons ─── */
+
+  .spinner-icon {
+    animation: spin 1.5s linear infinite;
+    stroke: var(--callout-gray-border);
+    transition: stroke 0.6s ease;
+  }
+  .warning .spinner-icon { stroke: var(--callout-amber-border); }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .done-icon { stroke: rgba(100, 180, 100, 0.7); }
+  .timeout-icon { stroke: rgba(220, 140, 50, 0.8); }
+  .error-icon { stroke: rgba(220, 80, 80, 0.8); }
+
+  .done .callout-header { color: rgba(100, 180, 100, 0.9); }
+  .timed-out .callout-header { color: rgba(220, 140, 50, 0.9); }
+  .error .callout-header { color: rgba(220, 80, 80, 0.9); }
+
+  /* ─── Timer ─── */
+
+  .l1-timer {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+  }
+
+  .l1-pulse-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--callout-gray-border);
+    animation: pulse-dot 2s ease-in-out infinite;
+    display: inline-block;
+    margin-left: 4px;
+    transition: background 0.6s ease;
+  }
+
+  .warning .l1-pulse-dot { background: var(--callout-amber-border); }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 0.3; transform: scale(0.85); }
+    50% { opacity: 1; transform: scale(1); }
+  }
+
+  .warning-text {
+    font-size: 12px;
+    color: rgba(220, 170, 50, 0.8);
+    margin-top: 6px;
+  }
+
+  .timeout-footer {
+    font-size: 13px;
+    color: rgba(220, 140, 50, 0.85);
+    margin-top: 8px;
+  }
+
+  .error-msg {
+    font-size: 13px;
+    color: rgba(220, 80, 80, 0.85);
+    margin-top: 8px;
+  }
+
+  .retry-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-bottom: 6px;
+  }
+
+  .response-text {
+    color: var(--text-normal);
+    line-height: 1.65;
+  }
+
+  .response-text strong { color: #ddd; }
+
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .fade-in { animation: fade-in 0.4s ease-out; }
+</style>
+</head>
+<body>
+
+<h1>Level 1 — Full Lifecycle</h1>
+<p class="subtitle">Every state the callout goes through, from "Thinking…" to timeout, retry, and final outcomes.</p>
+
+<hr class="divider">
+
+<!-- ───────── STATE 1: Thinking (early) ───────── -->
+<div class="state-section">
+  <div class="state-header">① Thinking (early)</div>
+  <div class="state-desc">User just asked a question. Timer is ticking, pulse dot breathing.</div>
+  <div class="callout-stack">
+    <div class="callout">
+      <div class="callout-header">
+        <svg class="icon spinner-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+        Thinking…
+      </div>
+      <div class="callout-body">
+        <div class="query">Clean up the formatting in the paragraph above</div>
+        <div class="l1-timer">
+          <span>⏱</span>
+          <span id="t-early">0s</span>
+          <span class="l1-pulse-dot"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────── STATE 2: Warning (2 min+) ───────── -->
+<div class="state-section">
+  <div class="state-header">② Warning (2 min+)</div>
+  <div class="state-desc">Callout shifts to amber. Warning text appears.</div>
+  <div class="callout-stack">
+    <div class="callout warning">
+      <div class="callout-header">
+        <svg class="icon spinner-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+        Thinking…
+      </div>
+      <div class="callout-body">
+        <div class="query">Clean up the formatting in the paragraph above</div>
+        <div class="l1-timer">
+          <span>⏱</span>
+          <span id="t-warning">2m 0s</span>
+          <span class="l1-pulse-dot"></span>
+        </div>
+        <div class="warning-text">⚠ Still waiting — Claude may need input in the terminal.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────── STATE 3: Timed out → Retry ───────── -->
+<div class="state-section">
+  <div class="state-header">③ Timed Out → Auto-Retry</div>
+  <div class="state-desc">Original callout shows timeout. A new "Retry" callout appears below with its own timer.</div>
+  <div class="callout-stack">
+    <div class="callout timed-out">
+      <div class="callout-header">
+        <svg class="icon timeout-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        ⏱ Timed out
+      </div>
+      <div class="callout-body">
+        <div class="query">Clean up the formatting in the paragraph above</div>
+        <div class="timeout-footer">Waited 5m 0s. Retrying automatically…</div>
+      </div>
+    </div>
+
+    <div class="callout fade-in">
+      <div class="callout-header">
+        <svg class="icon spinner-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+        Thinking…
+      </div>
+      <div class="callout-body">
+        <div class="retry-label">(Retry) The previous question timed out. Please respond to the original question above.</div>
+        <div class="l1-timer">
+          <span>⏱</span>
+          <span id="t-retry">0s</span>
+          <span class="l1-pulse-dot"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────── STATE 4: Retry also timed out (final error) ───────── -->
+<div class="state-section">
+  <div class="state-header">④ Retry Also Timed Out (final error)</div>
+  <div class="state-desc">Both attempts failed. The retry callout becomes an error. User sees both callouts stacked.</div>
+  <div class="callout-stack">
+    <div class="callout timed-out">
+      <div class="callout-header">
+        <svg class="icon timeout-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        ⏱ Timed out
+      </div>
+      <div class="callout-body">
+        <div class="query">Clean up the formatting in the paragraph above</div>
+        <div class="timeout-footer">Waited 5m 0s. Retrying automatically…</div>
+      </div>
+    </div>
+
+    <div class="callout error">
+      <div class="callout-header">
+        <svg class="icon error-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="15" y1="9" x2="9" y2="15"/>
+          <line x1="9" y1="9" x2="15" y2="15"/>
+        </svg>
+        Error
+      </div>
+      <div class="callout-body">
+        <div class="query"><strong>Q:</strong> The previous question timed out. Please respond to the original question above.</div>
+        <div class="error-msg">⚠️ Retry also timed out after 2 minutes.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ───────── STATE 5: Happy path — response arrives ───────── -->
+<div class="state-section">
+  <div class="state-header">⑤ Happy Path — Response Arrives</div>
+  <div class="state-desc">Response lands. The thinking callout is replaced with a collapsible response callout (green).</div>
+  <div class="callout-stack">
+    <div class="callout done fade-in">
+      <div class="callout-header">
+        <svg class="icon done-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M9 12l2 2 4-4"/>
+        </svg>
+        Clean up the formatting in the paragraph above
+      </div>
+      <div class="callout-body">
+        <div class="response-text">
+          <strong>Claude:</strong> I've cleaned up the paragraph. The main changes: removed redundant commas, fixed the dangling modifier in the second sentence, and consolidated the three short fragments into two complete sentences. The meaning is preserved but it reads more clearly now.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────── STATE 6: Connection error ───────── -->
+<div class="state-section">
+  <div class="state-header">⑥ Connection Error</div>
+  <div class="state-desc">Channel server unreachable. Immediate error — no timer, no retry.</div>
+  <div class="callout-stack">
+    <div class="callout error">
+      <div class="callout-header">
+        <svg class="icon error-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="15" y1="9" x2="9" y2="15"/>
+          <line x1="9" y1="9" x2="15" y2="15"/>
+        </svg>
+        Error
+      </div>
+      <div class="callout-body">
+        <div class="query"><strong>Q:</strong> Clean up the formatting in the paragraph above</div>
+        <div class="error-msg">⚠️ Could not reach channel server at 127.0.0.1:4321</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+<p class="note">All timers are live. States ①–④ show the full timeout lifecycle. State ⑤ is the normal happy path. State ⑥ is an immediate failure.</p>
+
+<script>
+  const timers = [
+    { el: 't-early', start: Date.now() },
+    { el: 't-warning', start: Date.now() - 120000 },
+    { el: 't-retry', start: Date.now() },
+  ];
+
+  function formatElapsed(ms) {
+    const total = Math.floor(ms / 1000);
+    if (total < 60) return total + 's';
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return m + 'm ' + s + 's';
+  }
+
+  setInterval(() => {
+    const now = Date.now();
+    timers.forEach(t => {
+      const el = document.getElementById(t.el);
+      if (el) el.textContent = formatElapsed(now - t.start);
+    });
+  }, 1000);
+</script>
+
+</body>
+</html>

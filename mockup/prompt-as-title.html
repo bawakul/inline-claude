@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inline Claude — Prompt-as-Title Flow</title>
+<style>
+  :root {
+    --bg-primary: #1e1e1e;
+    --bg-callout: #2a2a2a;
+    --text-normal: #dcddde;
+    --text-muted: #999;
+    --text-faint: #666;
+    --border-color: #383838;
+    --callout-gray: rgba(180, 180, 180, 0.15);
+    --callout-gray-border: rgba(180, 180, 180, 0.4);
+    --callout-amber: rgba(220, 170, 50, 0.15);
+    --callout-amber-border: rgba(220, 170, 50, 0.5);
+    --callout-green: rgba(100, 180, 100, 0.15);
+    --callout-green-border: rgba(100, 180, 100, 0.4);
+    --callout-red: rgba(220, 80, 80, 0.12);
+    --callout-red-border: rgba(220, 80, 80, 0.5);
+    --callout-orange: rgba(220, 140, 50, 0.12);
+    --callout-orange-border: rgba(220, 140, 50, 0.5);
+    --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+    --font-text: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font-text);
+    background: var(--bg-primary);
+    color: var(--text-normal);
+    padding: 40px;
+    line-height: 1.6;
+  }
+
+  h1 { font-size: 24px; font-weight: 600; margin-bottom: 8px; color: #eee; }
+  .subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 40px; }
+
+  .state-section { margin-bottom: 48px; }
+  .state-header { font-size: 15px; font-weight: 600; color: #ccc; margin-bottom: 4px; }
+  .state-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 14px; }
+  .state-source {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-faint);
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 4px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    max-width: 560px;
+    white-space: pre;
+    overflow-x: auto;
+  }
+
+  .callout-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 560px;
+  }
+
+  .divider { border: none; border-top: 1px solid var(--border-color); margin: 40px 0; }
+  .note { font-size: 12px; color: var(--text-faint); margin-top: 8px; font-style: italic; }
+
+  /* ─── Base callout ─── */
+
+  .callout {
+    border-left: 3px solid var(--callout-gray-border);
+    background: var(--callout-gray);
+    border-radius: 4px;
+    padding: 12px 16px;
+    font-size: 14px;
+    transition: background 0.4s ease, border-color 0.4s ease;
+  }
+
+  .callout.warning {
+    background: var(--callout-amber);
+    border-left-color: var(--callout-amber-border);
+  }
+
+  .callout.done {
+    background: var(--callout-green);
+    border-left-color: var(--callout-green-border);
+  }
+
+  .callout.timed-out {
+    background: var(--callout-orange);
+    border-left-color: var(--callout-orange-border);
+  }
+
+  .callout.error {
+    background: var(--callout-red);
+    border-left-color: var(--callout-red-border);
+  }
+
+  .callout-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+    font-size: 14px;
+    color: #bbb;
+  }
+
+  .callout-header .icon { width: 18px; height: 18px; flex-shrink: 0; }
+
+  .callout-body {
+    color: var(--text-muted);
+    font-size: 13px;
+    margin-top: 8px;
+  }
+
+  /* ─── Icons ─── */
+
+  .spinner-icon {
+    animation: spin 1.5s linear infinite;
+    stroke: var(--callout-gray-border);
+    transition: stroke 0.4s ease;
+  }
+  .warning .spinner-icon { stroke: var(--callout-amber-border); }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .done-icon { stroke: rgba(100, 180, 100, 0.7); }
+  .timeout-icon { stroke: rgba(220, 140, 50, 0.8); }
+  .error-icon { stroke: rgba(220, 80, 80, 0.8); }
+
+  .done .callout-header { color: rgba(100, 180, 100, 0.9); }
+  .timed-out .callout-header { color: rgba(220, 140, 50, 0.9); }
+  .error .callout-header { color: rgba(220, 80, 80, 0.9); }
+
+  /* ─── Timer ─── */
+
+  .thinking-body {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .thinking-label {
+    color: var(--text-muted);
+  }
+
+  .l1-timer {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-faint);
+    font-variant-numeric: tabular-nums;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .l1-pulse-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--callout-gray-border);
+    animation: pulse-dot 2s ease-in-out infinite;
+    display: inline-block;
+    margin-left: 2px;
+    transition: background 0.4s ease;
+  }
+
+  .warning .l1-pulse-dot { background: var(--callout-amber-border); }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 0.3; transform: scale(0.85); }
+    50% { opacity: 1; transform: scale(1); }
+  }
+
+  .warning-text {
+    font-size: 12px;
+    color: rgba(220, 170, 50, 0.8);
+    margin-top: 6px;
+  }
+
+  .timeout-body {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .error-msg {
+    font-size: 13px;
+    color: rgba(220, 80, 80, 0.85);
+  }
+
+  .response-text {
+    color: var(--text-normal);
+    font-size: 14px;
+    line-height: 1.65;
+  }
+
+  .response-text strong { color: #ddd; }
+
+  /* ─── Retry button ─── */
+
+  .retry-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(220, 140, 50, 0.15);
+    border: 1px solid rgba(220, 140, 50, 0.35);
+    color: rgba(220, 170, 50, 0.95);
+    font-size: 12px;
+    font-family: var(--font-text);
+    font-weight: 500;
+    padding: 3px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+
+  .retry-btn:hover {
+    background: rgba(220, 140, 50, 0.25);
+    border-color: rgba(220, 140, 50, 0.5);
+  }
+
+  .retry-btn .retry-icon {
+    width: 12px;
+    height: 12px;
+    stroke: rgba(220, 170, 50, 0.95);
+  }
+
+  /* ─── Interactive demo ─── */
+
+  .demo-section { margin-bottom: 48px; }
+  .demo-header { font-size: 15px; font-weight: 600; color: #ccc; margin-bottom: 4px; }
+  .demo-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 14px; }
+
+  .demo-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+
+  .demo-btn {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: var(--text-normal);
+    font-size: 12px;
+    font-family: var(--font-text);
+    padding: 5px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+
+  .demo-btn:hover { background: rgba(255,255,255,0.1); }
+  .demo-btn.active {
+    background: rgba(100, 160, 255, 0.15);
+    border-color: rgba(100, 160, 255, 0.4);
+    color: rgba(140, 190, 255, 1);
+  }
+
+  .source-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-faint);
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Prompt-as-Title Flow</h1>
+<p class="subtitle">The user's question is always the callout title. "Thinking…" and status live in the body. One callout, all states.</p>
+
+<hr class="divider">
+
+<!-- ───────── STATE 1: Thinking ───────── -->
+<div class="state-section">
+  <div class="state-header">① Thinking</div>
+  <div class="state-desc">Prompt is the title. Body shows "Thinking…" with timer — rendered in DOM only, not in the file.</div>
+  <div class="source-label">Markdown source (static in file):</div>
+  <div class="state-source">&gt; [!claude] Clean up the formatting in the paragraph above &lt;!-- rid:abc123 --&gt;</div>
+  <div class="callout-stack">
+    <div class="callout">
+      <div class="callout-header">
+        <svg class="icon spinner-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+        Clean up the formatting in the paragraph above
+      </div>
+      <div class="callout-body">
+        <div class="thinking-body">
+          <span class="thinking-label">Thinking…</span>
+          <span class="l1-timer">
+            ⏱ <span id="t-thinking">0s</span>
+            <span class="l1-pulse-dot"></span>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────── STATE 2: Warning ───────── -->
+<div class="state-section">
+  <div class="state-header">② Warning (2 min+)</div>
+  <div class="state-desc">Same callout, amber shift. Title unchanged — it's always the prompt.</div>
+  <div class="callout-stack">
+    <div class="callout warning">
+      <div class="callout-header">
+        <svg class="icon spinner-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+        Clean up the formatting in the paragraph above
+      </div>
+      <div class="callout-body">
+        <div class="thinking-body">
+          <span class="thinking-label">Thinking…</span>
+          <span class="l1-timer">
+            ⏱ <span id="t-warning">2m 0s</span>
+            <span class="l1-pulse-dot"></span>
+          </span>
+        </div>
+        <div class="warning-text">⚠ Still waiting — this is taking longer than usual. Check that Claude Code is running.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────── STATE 3: Timed out ───────── -->
+<div class="state-section">
+  <div class="state-header">③ Timed Out</div>
+  <div class="state-desc">Orange state. Timer stopped. Retry button available.</div>
+  <div class="callout-stack">
+    <div class="callout timed-out">
+      <div class="callout-header">
+        <svg class="icon timeout-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        Clean up the formatting in the paragraph above
+      </div>
+      <div class="callout-body">
+        <div class="timeout-body">
+          <span>Timed out after 5m 0s.</span>
+          <button class="retry-btn" onclick="demoRetry(this)">
+            <svg class="retry-icon" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            Retry
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────── STATE 4: Retrying ───────── -->
+<div class="state-section">
+  <div class="state-header">④ Retrying</div>
+  <div class="state-desc">User clicked Retry. Callout resets to Thinking with a subtle "(retry)" hint.</div>
+  <div class="callout-stack">
+    <div class="callout">
+      <div class="callout-header">
+        <svg class="icon spinner-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+        Clean up the formatting in the paragraph above
+      </div>
+      <div class="callout-body">
+        <div class="thinking-body">
+          <span class="thinking-label">Thinking… <span style="color:var(--text-faint); font-size:11px;">(retry)</span></span>
+          <span class="l1-timer">
+            ⏱ <span id="t-retrying">0s</span>
+            <span class="l1-pulse-dot"></span>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ───────── STATE 5: Done ───────── -->
+<div class="state-section">
+  <div class="state-header">⑤ Response Arrived</div>
+  <div class="state-desc">File is written once: <code>[!claude-done]+</code> with the same prompt as title. Smooth continuity.</div>
+  <div class="source-label">Markdown source (written to file):</div>
+  <div class="state-source">&gt; [!claude-done]+ Clean up the formatting in the paragraph above
+&gt; **Claude:** I've cleaned up the paragraph...</div>
+  <div class="callout-stack">
+    <div class="callout done">
+      <div class="callout-header">
+        <svg class="icon done-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M9 12l2 2 4-4"/>
+        </svg>
+        Clean up the formatting in the paragraph above
+      </div>
+      <div class="callout-body">
+        <div class="response-text">
+          <strong>Claude:</strong> I've cleaned up the paragraph. The main changes: removed redundant commas, fixed the dangling modifier in the second sentence, and consolidated the three short fragments into two complete sentences. The meaning is preserved but it reads more clearly now.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────── STATE 6: Error ───────── -->
+<div class="state-section">
+  <div class="state-header">⑥ Error</div>
+  <div class="state-desc">Prompt stays as title. Error details in body.</div>
+  <div class="source-label">Markdown source (written to file):</div>
+  <div class="state-source">&gt; [!claude] Error — Clean up the formatting in the paragraph above
+&gt; ⚠️ Could not reach channel server at 127.0.0.1:4321</div>
+  <div class="callout-stack">
+    <div class="callout error">
+      <div class="callout-header">
+        <svg class="icon error-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="15" y1="9" x2="9" y2="15"/>
+          <line x1="9" y1="9" x2="15" y2="15"/>
+        </svg>
+        Clean up the formatting in the paragraph above
+      </div>
+      <div class="callout-body">
+        <div class="error-msg">⚠️ Could not reach channel server at 127.0.0.1:4321</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ───────── INTERACTIVE DEMO ───────── -->
+<div class="demo-section">
+  <div class="demo-header">Interactive Demo</div>
+  <div class="demo-desc">Watch one callout morph. The title never changes — it's always your prompt.</div>
+
+  <div class="demo-controls">
+    <button class="demo-btn active" onclick="setDemoState('thinking')">① Thinking</button>
+    <button class="demo-btn" onclick="setDemoState('warning')">② Warning</button>
+    <button class="demo-btn" onclick="setDemoState('timeout')">③ Timed Out</button>
+    <button class="demo-btn" onclick="setDemoState('retrying')">④ Retrying</button>
+    <button class="demo-btn" onclick="setDemoState('done')">⑤ Done</button>
+    <button class="demo-btn" onclick="setDemoState('error')">⑥ Error</button>
+  </div>
+
+  <div class="callout-stack">
+    <div class="callout" id="demo-callout">
+      <div class="callout-header" id="demo-header">
+        <svg class="icon spinner-icon" id="demo-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+        <span>Clean up the formatting in the paragraph above</span>
+      </div>
+      <div class="callout-body" id="demo-body">
+        <div class="thinking-body">
+          <span class="thinking-label">Thinking…</span>
+          <span class="l1-timer">
+            ⏱ <span id="demo-timer-val">0s</span>
+            <span class="l1-pulse-dot"></span>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+<p class="note">Prompt is always the title. Body morphs through states. File is static until done/error.</p>
+
+<script>
+  const timers = [
+    { el: 't-thinking', start: Date.now() },
+    { el: 't-warning', start: Date.now() - 120000 },
+    { el: 't-retrying', start: Date.now() },
+    { el: 'demo-timer-val', start: Date.now() },
+  ];
+
+  function fmt(ms) {
+    const s = Math.floor(ms / 1000);
+    if (s < 60) return s + 's';
+    return Math.floor(s / 60) + 'm ' + (s % 60) + 's';
+  }
+
+  setInterval(() => {
+    const now = Date.now();
+    timers.forEach(t => {
+      const el = document.getElementById(t.el);
+      if (el) el.textContent = fmt(now - t.start);
+    });
+  }, 1000);
+
+  function demoRetry(btn) {
+    const callout = btn.closest('.callout');
+    callout.className = 'callout';
+    callout.querySelector('.callout-header').innerHTML = `
+      <svg class="icon spinner-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+      <span>Clean up the formatting in the paragraph above</span>
+    `;
+    callout.querySelector('.callout-body').innerHTML = `
+      <div class="thinking-body">
+        <span class="thinking-label">Thinking… <span style="color:var(--text-faint);font-size:11px;">(retry)</span></span>
+        <span class="l1-timer">⏱ <span id="t-retry-demo">0s</span> <span class="l1-pulse-dot"></span></span>
+      </div>
+    `;
+    timers.push({ el: 't-retry-demo', start: Date.now() });
+  }
+
+  const icons = {
+    spinner: `<svg class="icon spinner-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`,
+    timeout: `<svg class="icon timeout-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+    done: `<svg class="icon done-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>`,
+    error: `<svg class="icon error-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`,
+  };
+
+  function setDemoState(state) {
+    const callout = document.getElementById('demo-callout');
+    const header = document.getElementById('demo-header');
+    const body = document.getElementById('demo-body');
+
+    document.querySelectorAll('.demo-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+
+    callout.className = 'callout';
+    const title = `<span>Clean up the formatting in the paragraph above</span>`;
+
+    switch (state) {
+      case 'thinking':
+        header.innerHTML = icons.spinner + title;
+        body.innerHTML = `<div class="thinking-body"><span class="thinking-label">Thinking…</span><span class="l1-timer">⏱ <span id="demo-timer-val">0s</span> <span class="l1-pulse-dot"></span></span></div>`;
+        timers.find(t => t.el === 'demo-timer-val').start = Date.now();
+        break;
+
+      case 'warning':
+        callout.classList.add('warning');
+        header.innerHTML = icons.spinner + title;
+        body.innerHTML = `
+          <div class="thinking-body"><span class="thinking-label">Thinking…</span><span class="l1-timer">⏱ <span id="demo-timer-val">2m 0s</span> <span class="l1-pulse-dot"></span></span></div>
+          <div class="warning-text">⚠ Still waiting — this is taking longer than usual. Check that Claude Code is running.</div>
+        `;
+        timers.find(t => t.el === 'demo-timer-val').start = Date.now() - 120000;
+        break;
+
+      case 'timeout':
+        callout.classList.add('timed-out');
+        header.innerHTML = icons.timeout + title;
+        body.innerHTML = `<div class="timeout-body"><span>Timed out after 5m 0s.</span><button class="retry-btn" onclick="setDemoState('retrying')"><svg class="retry-icon" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Retry</button></div>`;
+        break;
+
+      case 'retrying':
+        header.innerHTML = icons.spinner + title;
+        body.innerHTML = `<div class="thinking-body"><span class="thinking-label">Thinking… <span style="color:var(--text-faint);font-size:11px;">(retry)</span></span><span class="l1-timer">⏱ <span id="demo-timer-val">0s</span> <span class="l1-pulse-dot"></span></span></div>`;
+        timers.find(t => t.el === 'demo-timer-val').start = Date.now();
+        document.querySelectorAll('.demo-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.demo-btn')[3].classList.add('active');
+        break;
+
+      case 'done':
+        callout.classList.add('done');
+        header.innerHTML = icons.done + title;
+        body.innerHTML = `<div class="response-text"><strong>Claude:</strong> I've cleaned up the paragraph. The main changes: removed redundant commas, fixed the dangling modifier in the second sentence, and consolidated the three short fragments into two complete sentences.</div>`;
+        break;
+
+      case 'error':
+        callout.classList.add('error');
+        header.innerHTML = icons.error + title;
+        body.innerHTML = `<div class="error-msg">⚠️ Could not reach channel server at 127.0.0.1:4321</div>`;
+        break;
+    }
+  }
+</script>
+
+</body>
+</html>

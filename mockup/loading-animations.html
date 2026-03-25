@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inline Claude — Loading Animation Mockup</title>
+<style>
+  :root {
+    --bg-primary: #1e1e1e;
+    --bg-secondary: #262626;
+    --bg-callout: #2a2a2a;
+    --text-normal: #dcddde;
+    --text-muted: #999;
+    --text-faint: #666;
+    --border-color: #383838;
+    --callout-gray: rgba(180, 180, 180, 0.15);
+    --callout-gray-border: rgba(180, 180, 180, 0.4);
+    --callout-amber: rgba(220, 170, 50, 0.15);
+    --callout-amber-border: rgba(220, 170, 50, 0.5);
+    --callout-green: rgba(100, 180, 100, 0.15);
+    --callout-green-border: rgba(100, 180, 100, 0.4);
+    --shimmer-base: rgba(255, 255, 255, 0.03);
+    --shimmer-highlight: rgba(255, 255, 255, 0.07);
+    --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+    --font-text: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font-text);
+    background: var(--bg-primary);
+    color: var(--text-normal);
+    padding: 40px;
+    line-height: 1.6;
+  }
+
+  h1 {
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #eee;
+  }
+
+  .subtitle {
+    color: var(--text-muted);
+    font-size: 14px;
+    margin-bottom: 40px;
+  }
+
+  .level-section {
+    margin-bottom: 56px;
+  }
+
+  .level-header {
+    font-size: 16px;
+    font-weight: 600;
+    color: #ccc;
+    margin-bottom: 6px;
+  }
+
+  .level-desc {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+  }
+
+  .callout-row {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  .callout-wrapper {
+    flex: 1;
+    min-width: 320px;
+    max-width: 480px;
+  }
+
+  .callout-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-faint);
+    margin-bottom: 8px;
+    font-weight: 500;
+  }
+
+  /* ─── Base callout styling (mimics Obsidian) ─── */
+
+  .callout {
+    background: var(--callout-gray);
+    border-left: 3px solid var(--callout-gray-border);
+    border-radius: 4px;
+    padding: 12px 16px;
+    font-size: 14px;
+    transition: background 0.6s ease, border-color 0.6s ease;
+  }
+
+  .callout.warning {
+    background: var(--callout-amber);
+    border-left-color: var(--callout-amber-border);
+  }
+
+  .callout.done {
+    background: var(--callout-green);
+    border-left-color: var(--callout-green-border);
+  }
+
+  .callout-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-weight: 500;
+    font-size: 14px;
+    color: #bbb;
+  }
+
+  .callout-header .icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+
+  .callout-body {
+    color: var(--text-normal);
+    font-size: 14px;
+  }
+
+  .callout-body .query {
+    margin-bottom: 10px;
+  }
+
+  /* ─── Spinner icon ─── */
+
+  .spinner-icon {
+    animation: spin 1.5s linear infinite;
+    stroke: var(--callout-gray-border);
+    transition: stroke 0.6s ease;
+  }
+
+  .warning .spinner-icon {
+    stroke: var(--callout-amber-border);
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* ─── LEVEL 1: Clean & Minimal ─── */
+
+  .l1-timer {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+  }
+
+  .l1-timer .clock-icon {
+    font-size: 12px;
+  }
+
+  .l1-pulse-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--callout-gray-border);
+    animation: pulse-dot 2s ease-in-out infinite;
+    display: inline-block;
+    margin-left: 4px;
+    transition: background 0.6s ease;
+  }
+
+  .warning .l1-pulse-dot {
+    background: var(--callout-amber-border);
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 0.3; transform: scale(0.85); }
+    50% { opacity: 1; transform: scale(1); }
+  }
+
+  .l1-warning-text {
+    font-size: 12px;
+    color: rgba(220, 170, 50, 0.8);
+    margin-top: 6px;
+    opacity: 0;
+    animation: fade-in 0.5s ease forwards;
+  }
+
+  @keyframes fade-in {
+    to { opacity: 1; }
+  }
+
+  /* ─── LEVEL 2: Polished ─── */
+
+  .l2-timer {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    transition: color 0.3s ease;
+  }
+
+  .l2-shimmer-container {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .l2-shimmer-line {
+    height: 10px;
+    border-radius: 4px;
+    background: linear-gradient(
+      90deg,
+      var(--shimmer-base) 0%,
+      var(--shimmer-highlight) 40%,
+      var(--shimmer-base) 80%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s ease-in-out infinite;
+  }
+
+  .l2-shimmer-line:nth-child(1) { width: 85%; animation-delay: 0s; }
+  .l2-shimmer-line:nth-child(2) { width: 70%; animation-delay: 0.15s; }
+  .l2-shimmer-line:nth-child(3) { width: 55%; animation-delay: 0.3s; }
+
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* Response fade-in */
+  .l2-response-fadein {
+    animation: response-enter 0.4s ease-out;
+  }
+
+  @keyframes response-enter {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .l2-warning-text {
+    font-size: 12px;
+    color: rgba(220, 170, 50, 0.8);
+    margin-top: 8px;
+    opacity: 0;
+    animation: fade-in 0.5s ease forwards;
+  }
+
+  /* ─── LEVEL 3: Showy ─── */
+
+  .l3-callout-outer {
+    position: relative;
+    border-radius: 6px;
+    padding: 2px;
+    background: linear-gradient(
+      135deg,
+      rgba(120, 100, 255, 0.3),
+      rgba(80, 160, 255, 0.2),
+      rgba(150, 80, 255, 0.3),
+      rgba(80, 160, 255, 0.2)
+    );
+    background-size: 300% 300%;
+    animation: gradient-border 4s ease infinite;
+  }
+
+  .l3-callout-outer .callout {
+    border-left: none;
+    border-radius: 4px;
+    background: var(--bg-callout);
+  }
+
+  @keyframes gradient-border {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  .l3-timer {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+  }
+
+  .l3-shimmer-container {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .l3-shimmer-line {
+    height: 10px;
+    border-radius: 4px;
+    background: linear-gradient(
+      90deg,
+      var(--shimmer-base) 0%,
+      rgba(120, 100, 255, 0.08) 40%,
+      var(--shimmer-base) 80%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s ease-in-out infinite;
+  }
+
+  .l3-shimmer-line:nth-child(1) { width: 85%; animation-delay: 0s; }
+  .l3-shimmer-line:nth-child(2) { width: 70%; animation-delay: 0.15s; }
+  .l3-shimmer-line:nth-child(3) { width: 55%; animation-delay: 0.3s; }
+
+  .l3-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 14px;
+    background: rgba(120, 100, 255, 0.5);
+    animation: blink 1s step-end infinite;
+    margin-left: 2px;
+    vertical-align: text-bottom;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  /* ─── DONE callout ─── */
+
+  .done .callout-header { color: rgba(100, 180, 100, 0.9); }
+
+  .done-icon {
+    stroke: rgba(100, 180, 100, 0.7);
+  }
+
+  .response-text {
+    color: var(--text-normal);
+    line-height: 1.65;
+  }
+
+  .response-text strong {
+    color: #ddd;
+  }
+
+  /* ─── Layout ─── */
+
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 40px 0;
+  }
+
+  .note {
+    font-size: 12px;
+    color: var(--text-faint);
+    margin-top: 8px;
+    font-style: italic;
+  }
+</style>
+</head>
+<body>
+
+<h1>Inline Claude — Loading Animation Mockup</h1>
+<p class="subtitle">Three levels of visual polish for the "Thinking…" callout. Timers are live.</p>
+
+<hr class="divider">
+
+<!-- ════════════════════════════════════════════ LEVEL 1 ════════════════════════════════════════════ -->
+
+<div class="level-section">
+  <div class="level-header">Level 1 — Clean &amp; Minimal</div>
+  <p class="level-desc">Pulsing dot, smooth tabular-nums timer, color shift on warning.</p>
+
+  <div class="callout-row">
+    <div class="callout-wrapper">
+      <div class="callout-label">Normal state</div>
+      <div class="callout" id="l1-normal">
+        <div class="callout-header">
+          <svg class="icon spinner-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+          Thinking…
+        </div>
+        <div class="callout-body">
+          <div class="query">Summarize the key arguments in the paragraph above</div>
+          <div class="l1-timer">
+            <span class="clock-icon">⏱</span>
+            <span id="l1-normal-time">0s</span>
+            <span class="l1-pulse-dot"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout-wrapper">
+      <div class="callout-label">Warning state (2 min+)</div>
+      <div class="callout warning" id="l1-warning">
+        <div class="callout-header">
+          <svg class="icon spinner-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+          Thinking…
+        </div>
+        <div class="callout-body">
+          <div class="query">Summarize the key arguments in the paragraph above</div>
+          <div class="l1-timer">
+            <span class="clock-icon">⏱</span>
+            <span id="l1-warning-time">2m 0s</span>
+            <span class="l1-pulse-dot"></span>
+          </div>
+          <div class="l1-warning-text">⚠ Still waiting — Claude may need input in the terminal.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ════════════════════════════════════════════ LEVEL 2 ════════════════════════════════════════════ -->
+
+<div class="level-section">
+  <div class="level-header">Level 2 — Polished (Recommended)</div>
+  <p class="level-desc">Shimmer skeleton lines, smooth timer, warning color transition, response fade-in.</p>
+
+  <div class="callout-row">
+    <div class="callout-wrapper">
+      <div class="callout-label">Normal state</div>
+      <div class="callout" id="l2-normal">
+        <div class="callout-header">
+          <svg class="icon spinner-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+          Thinking…
+        </div>
+        <div class="callout-body">
+          <div class="query">Summarize the key arguments in the paragraph above</div>
+          <div class="l2-timer">
+            <span>⏱</span>
+            <span id="l2-normal-time">0s</span>
+          </div>
+          <div class="l2-shimmer-container">
+            <div class="l2-shimmer-line"></div>
+            <div class="l2-shimmer-line"></div>
+            <div class="l2-shimmer-line"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout-wrapper">
+      <div class="callout-label">Warning state (2 min+)</div>
+      <div class="callout warning" id="l2-warning">
+        <div class="callout-header">
+          <svg class="icon spinner-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+          Thinking…
+        </div>
+        <div class="callout-body">
+          <div class="query">Summarize the key arguments in the paragraph above</div>
+          <div class="l2-timer">
+            <span>⏱</span>
+            <span id="l2-warning-time">2m 0s</span>
+          </div>
+          <div class="l2-shimmer-container">
+            <div class="l2-shimmer-line"></div>
+            <div class="l2-shimmer-line"></div>
+            <div class="l2-shimmer-line"></div>
+          </div>
+          <div class="l2-warning-text">⚠ Still waiting — Claude may need input in the terminal.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout-wrapper">
+      <div class="callout-label">Response arrived ↓</div>
+      <div class="callout done l2-response-fadein">
+        <div class="callout-header">
+          <svg class="icon done-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
+          Summarize the key arguments in the paragraph above
+        </div>
+        <div class="callout-body">
+          <div class="response-text">
+            <strong>Claude:</strong> The paragraph makes three central arguments. First, that distributed systems inevitably face partition tolerance trade-offs. Second, that consistency guarantees should be chosen based on the specific access pattern, not applied uniformly. Third, that eventual consistency is often acceptable for read-heavy workloads where staleness windows are bounded.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ════════════════════════════════════════════ LEVEL 3 ════════════════════════════════════════════ -->
+
+<div class="level-section">
+  <div class="level-header">Level 3 — Showy</div>
+  <p class="level-desc">Animated gradient border, purple-tinted shimmer, typing cursor blink.</p>
+
+  <div class="callout-row">
+    <div class="callout-wrapper">
+      <div class="callout-label">Normal state</div>
+      <div class="l3-callout-outer">
+        <div class="callout" id="l3-normal">
+          <div class="callout-header">
+            <svg class="icon spinner-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+            Thinking…
+          </div>
+          <div class="callout-body">
+            <div class="query">Summarize the key arguments in the paragraph above</div>
+            <div class="l3-timer">
+              <span>⏱</span>
+              <span id="l3-normal-time">0s</span>
+            </div>
+            <div class="l3-shimmer-container">
+              <div class="l3-shimmer-line"></div>
+              <div class="l3-shimmer-line"></div>
+              <div class="l3-shimmer-line">
+                <span class="l3-cursor"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout-wrapper">
+      <div class="callout-label">Normal state (wider)</div>
+      <div class="l3-callout-outer">
+        <div class="callout" id="l3-normal2">
+          <div class="callout-header">
+            <svg class="icon spinner-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+            Thinking…
+          </div>
+          <div class="callout-body">
+            <div class="query">Clean up the formatting in the paragraph above and fix any grammar issues</div>
+            <div class="l3-timer">
+              <span>⏱</span>
+              <span id="l3-normal2-time">0s</span>
+            </div>
+            <div class="l3-shimmer-container">
+              <div class="l3-shimmer-line"></div>
+              <div class="l3-shimmer-line"></div>
+              <div class="l3-shimmer-line">
+                <span class="l3-cursor"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<p class="note">All timers are live. The warning state shows what happens at the 2-minute mark. Colors use Obsidian-compatible CSS variables.</p>
+
+<script>
+  // Live timer updates
+  const timers = [
+    { el: 'l1-normal-time', start: Date.now() },
+    { el: 'l1-warning-time', start: Date.now() - 120000 },
+    { el: 'l2-normal-time', start: Date.now() },
+    { el: 'l2-warning-time', start: Date.now() - 120000 },
+    { el: 'l3-normal-time', start: Date.now() },
+    { el: 'l3-normal2-time', start: Date.now() },
+  ];
+
+  function formatElapsed(ms) {
+    const total = Math.floor(ms / 1000);
+    if (total < 60) return total + 's';
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return m + 'm ' + s + 's';
+  }
+
+  setInterval(() => {
+    const now = Date.now();
+    timers.forEach(t => {
+      const el = document.getElementById(t.el);
+      if (el) el.textContent = formatElapsed(now - t.start);
+    });
+  }, 1000);
+</script>
+
+</body>
+</html>
