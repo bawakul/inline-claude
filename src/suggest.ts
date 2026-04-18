@@ -85,7 +85,9 @@ export class ClaudeSuggest extends EditorSuggest<string> {
 			file: TFile | null;
 		};
 
-		const filename = file ? file.path : "";
+		const filename = file
+			? file.path
+			: this.plugin.app.workspace.getActiveFile()?.path ?? "";
 		const nearLine = start.line;
 
 		// Insert single-line callout + blank line for cursor
