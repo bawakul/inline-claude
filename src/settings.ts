@@ -17,6 +17,14 @@ export const DEFAULT_SETTINGS: ClaudeChatSettings = {
 };
 
 /**
+ * POSIX single-quote escape: wrap in `'...'` and replace each embedded `'` with `'\''`.
+ * Safe for any string, including paths with apostrophes, spaces, `$`, backticks, backslashes.
+ */
+export function shEscape(s: string): string {
+	return `'${s.replace(/'/g, `'\\''`)}'`;
+}
+
+/**
  * Try to find the claude binary. Checks common install locations.
  */
 function findClaudeBinary(): string | null {
@@ -317,7 +325,7 @@ export class ClaudeChatSettingTab extends PluginSettingTab {
 
 		try {
 			const skipFlag = skipPermissions ? " --dangerously-skip-permissions" : "";
-			const cmd = `cd '${vaultPath}' && '${claudePath}' --dangerously-load-development-channels server:inline-claude${skipFlag}`;
+			const cmd = `cd ${shEscape(vaultPath)} && ${shEscape(claudePath)} --dangerously-load-development-channels server:inline-claude${skipFlag}`;
 
 			// Use open(1) to launch Terminal.app — doesn't require Automation permission
 			// Write command to a temp script that keeps the shell alive

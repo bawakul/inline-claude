@@ -326,3 +326,45 @@ describe("ClaudeChatSettingTab", () => {
 		});
 	});
 });
+
+describe("shEscape", () => {
+	it("wraps plain strings in single quotes", async () => {
+		const { shEscape } = await import("../settings");
+		expect(shEscape("hello")).toBe("'hello'");
+	});
+
+	it("preserves spaces without extra escaping", async () => {
+		const { shEscape } = await import("../settings");
+		expect(shEscape("/path with/space")).toBe("'/path with/space'");
+	});
+
+	it("escapes embedded apostrophes using the POSIX '\\'' idiom", async () => {
+		const { shEscape } = await import("../settings");
+		// Regression guard for issue #11 — vault paths like "Bawa's Lab"
+		expect(shEscape("Bawa's Lab")).toBe("'Bawa'\\''s Lab'");
+	});
+
+	it("leaves shell metacharacters ($, backtick, backslash) inert inside single quotes", async () => {
+		const { shEscape } = await import("../settings");
+		expect(shEscape("$HOME")).toBe("'$HOME'");
+		expect(shEscape("`whoami`")).toBe("'`whoami`'");
+		expect(shEscape("back\\slash")).toBe("'back\\slash'");
+	});
+
+	it("handles multiple apostrophes in the same string", async () => {
+		const { shEscape } = await import("../settings");
+		expect(shEscape("it's O'Brien's")).toBe("'it'\\''s O'\\''Brien'\\''s'");
+	});
+
+	it("produces a shell-safe command when composed", async () => {
+		const { shEscape } = await import("../settings");
+		// The full failure mode from issue #11: embedding a path with an
+		// apostrophe into `cd ... && ...`. Before the fix this produced
+		// `cd '/Users/.../Bawa's Lab' && ...` which the shell parsed as an
+		// unterminated quote.
+		const cmd = `cd ${shEscape("/Users/x/Bawa's Lab")} && ${shEscape("/usr/local/bin/claude")}`;
+		expect(cmd).toBe(
+			"cd '/Users/x/Bawa'\\''s Lab' && '/usr/local/bin/claude'",
+		);
+	});
+});
