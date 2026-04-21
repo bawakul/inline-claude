@@ -9,6 +9,7 @@ Thumbs.db
 
 # Claude sessions (local only)
 .claude/sessions/
+.claude/settings.local.json
 
 # GSD / agent runtime artifacts
 .gsd
