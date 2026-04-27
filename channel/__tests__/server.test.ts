@@ -167,15 +167,27 @@ describe("integration: HTTP endpoints", () => {
 	});
 
 	// -----------------------------------------------------------------------
-	// GET /health
+	// GET /health — returns JSON with ok and session_id
 	// -----------------------------------------------------------------------
 
-	it("GET /health returns 200 ok", async () => {
+	it("GET /health returns 200 with ok:true and session_id", async () => {
 		const res = await handler(req("GET", "/health"));
 		expect(res.status).toBe(200);
 
-		const text = await res.text();
-		expect(text).toBe("ok");
+		const json = (await res.json()) as { ok: boolean; session_id: string };
+		expect(json.ok).toBe(true);
+		// Default session_id when none is passed to createFetchHandler
+		expect(json.session_id).toBe("unknown");
+	});
+
+	it("GET /health reflects the sessionId passed to createFetchHandler", async () => {
+		const customHandler = createFetchHandler({ sessionId: "test-session-abc" });
+		const res = await customHandler(req("GET", "/health"));
+		expect(res.status).toBe(200);
+
+		const json = (await res.json()) as { ok: boolean; session_id: string };
+		expect(json.ok).toBe(true);
+		expect(json.session_id).toBe("test-session-abc");
 	});
 
 	// -----------------------------------------------------------------------

@@ -18,6 +18,12 @@ import {
 import { createRequest, storeReply, getStatus } from "./store.js";
 
 // ---------------------------------------------------------------------------
+// Session identity — lets the plugin detect which bun instance it's talking to
+// ---------------------------------------------------------------------------
+
+const SESSION_ID = crypto.randomUUID();
+
+// ---------------------------------------------------------------------------
 // MCP Server
 // ---------------------------------------------------------------------------
 
@@ -132,13 +138,18 @@ export interface NotifyFn {
  * binding. The optional `notifier` callback is invoked on new prompts;
  * when omitted (or when `isConnected` returns false) notifications are
  * skipped — matching the production behavior when MCP isn't connected.
+ *
+ * The `sessionId` is included in GET /health responses so the plugin can
+ * distinguish which bun instance it is talking to.
  */
 export function createFetchHandler(opts?: {
 	notifier?: NotifyFn;
 	isConnected?: () => boolean;
+	sessionId?: string;
 }): (req: Request) => Promise<Response> {
 	const notifier = opts?.notifier;
 	const isConnected = opts?.isConnected ?? (() => false);
+	const sessionId = opts?.sessionId ?? "unknown";
 
 	return async (req: Request): Promise<Response> => {
 		try {
@@ -146,8 +157,12 @@ export function createFetchHandler(opts?: {
 			const { pathname } = url;
 
 			// GET /health — liveness probe
+			// Returns session_id so the plugin can detect which bun instance answered.
 			if (req.method === "GET" && pathname === "/health") {
-				return new Response("ok", { status: 200 });
+				return Response.json(
+					{ ok: true, session_id: sessionId },
+					{ status: 200 },
+				);
 			}
 
 			// POST /prompt — create request and notify Claude
@@ -273,15 +288,48 @@ async function main() {
 			} as any);
 		},
 		isConnected: () => mcpConnected,
+		sessionId: SESSION_ID,
 	});
 
-	Bun.serve({
-		port,
-		hostname: "127.0.0.1",
-		fetch: fetchHandler,
-	});
+	// ---------------------------------------------------------------------------
+	// Port-conflict guard: if another bun already owns this port, exit cleanly
+	// so Claude Code drops the stdio link and the plugin's health check goes red.
+	// This prevents the silent-subscriber problem where the second claude appears
+	// connected but its bun never bound the port.
+	// ---------------------------------------------------------------------------
+	try {
+		Bun.serve({
+			port,
+			hostname: "127.0.0.1",
+			fetch: fetchHandler,
+		});
+	} catch (err: unknown) {
+		const isPortConflict =
+			err instanceof Error &&
+			(err.message.includes("EADDRINUSE") ||
+				err.message.includes("address already in use"));
 
-	console.error(`[channel] HTTP listening on 127.0.0.1:${port}`);
+		if (isPortConflict) {
+			console.error(
+				`[channel] FATAL: port ${port} is already in use — another claude session owns this channel.`,
+			);
+			console.error(
+				`[channel] This claude session will not receive inline-claude messages.`,
+			);
+			console.error(
+				`[channel] Close the other claude session first, then restart this one.`,
+			);
+			// Disconnect the MCP transport so Claude Code reports a server failure
+			// and the plugin's /health check goes red for this instance.
+			await server.close();
+			process.exit(1);
+		}
+
+		// Unknown error — rethrow to surface it normally
+		throw err;
+	}
+
+	console.error(`[channel] HTTP listening on 127.0.0.1:${port} (session ${SESSION_ID})`);
 }
 
 // Only start the server when running as the main script (not when imported

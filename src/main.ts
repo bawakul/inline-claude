@@ -14,6 +14,13 @@ export default class ClaudeChatPlugin extends Plugin {
 		null;
 	activePollers: Map<string, number> = new Map();
 	channelHealthy: boolean = false;
+	/**
+	 * The session_id returned by the channel server's /health endpoint.
+	 * A new UUID is generated each time a bun process starts, so a change
+	 * in this value means a different bun (and likely a different claude)
+	 * is now answering on the port.
+	 */
+	channelSessionId: string | null = null;
 	private healthInterval: number | null = null;
 	statusBarEl: HTMLElement | null = null;
 	onHealthChange: (() => void) | null = null;
@@ -84,9 +91,41 @@ export default class ClaudeChatPlugin extends Plugin {
 				method: "GET",
 				throw: false,
 			});
-			this.channelHealthy = res.status === 200;
+			if (res.status === 200) {
+				this.channelHealthy = true;
+				// Extract session_id from JSON response (v0.2.0+).
+				// Older channel.js versions return plain "ok" text — tolerate both.
+				try {
+					const body = res.json as { session_id?: string };
+					const newSessionId = body?.session_id ?? null;
+					if (
+						newSessionId &&
+						this.channelSessionId &&
+						newSessionId !== this.channelSessionId
+					) {
+						// The bun process changed — a different claude now owns the port.
+						// Show a notice so the user knows to restart the intended session.
+						console.log(
+							`Inline Claude: channel session changed (${this.channelSessionId} → ${newSessionId}). ` +
+							"A different claude instance may now own the channel."
+						);
+						new Notice(
+							"Inline Claude: the channel server restarted or a different Claude session took over. " +
+							"If messages are not reaching your Claude, close other Claude sessions and restart."
+						);
+					}
+					this.channelSessionId = newSessionId;
+				} catch {
+					// JSON parse failed — old plain-text /health, ignore session tracking
+					this.channelSessionId = null;
+				}
+			} else {
+				this.channelHealthy = false;
+				this.channelSessionId = null;
+			}
 		} catch {
 			this.channelHealthy = false;
+			this.channelSessionId = null;
 		}
 		this.updateStatusBar();
 		this.onHealthChange?.();
