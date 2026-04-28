@@ -1,3 +1,18 @@
+---
+gsd_state_version: 1.0
+milestone: v0.2.0
+milestone_name: — Install Hygiene & Channel Scoping
+status: Defining requirements
+stopped_at: Phase 16 context gathered
+last_updated: "2026-04-28T21:41:49.890Z"
+last_activity: "2026-04-28 — Canvas issues triaged: #7, #8 closed as fixed; #14 routed through #15; P16 (canvas-reply-via-canvas-api) added to M008"
+progress:
+  total_phases: 1
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+---
+
 # Project State
 
 ## Project Reference
@@ -20,6 +35,7 @@ Last activity: 2026-04-28 — Canvas issues triaged: #7, #8 closed as fixed; #14
 Migrated from GSD-2. Review PROJECT.md for key decisions.
 
 v0.2.0 scope is driven by dogfooding friction in the `Bawa's Lab` vault:
+
 - `@.obsidian/plugins/inline-claude/CLAUDE.md` import triggers the external-import security prompt when Claude Code runs from a subfolder of the vault
 - Channel rules leak into every session under the vault, even those unrelated to the inline-claude channel
 - MCP `instructions` capability is the correct channel-scoped location — loaded only when the MCP server is connected
@@ -32,6 +48,7 @@ Symptom: plugin settings tab showed "🟢 Connected to Claude Code" and a plugin
 Root cause: `channel/server.ts` called `Bun.serve()` bare. When the port was already bound, the second bun exited *after* the MCP stdio handshake had succeeded — so Claude Code marked the server live, and the plugin's `/health` poll happily got 200 from the first (winning) bun. POSTs piped to whatever claude got there first.
 
 Fix (debug session `.planning/debug/mcp-port-conflict-ux.md`):
+
 - `channel/server.ts` — try/catch around `Bun.serve()` detecting EADDRINUSE; closes MCP stdio transport and exits 1 so Claude Code surfaces the failure and the plugin's health check goes red.
 - `channel/server.ts` — `/health` now returns JSON `{ ok, session_id }` (UUID per process).
 - `src/main.ts` — `checkHealth()` parses the new JSON, tracks `channelSessionId`, fires an Obsidian `Notice` if the session ID changes mid-run.
@@ -39,6 +56,7 @@ Fix (debug session `.planning/debug/mcp-port-conflict-ux.md`):
 - Verification: `bun test` 28/28, `npm test` 77/77.
 
 Outstanding hardening (not in this fix, deferred to backlog):
+
 - `.mcp.json` could use a per-vault dynamic port (e.g. `${OBSIDIAN_VAULT_ID}`) or a unix socket to eliminate the collision class entirely.
 - Plugin "Connected" status could verify the bound bun's parent PID matches a `server:inline-claude` claude, not just `/health` 200 + session_id.
 - P15's removal UX should still kill orphan bun processes, not just edit `.mcp.json`.
@@ -54,6 +72,7 @@ Triaged the four canvas-related issues (#7, #8, #14, #15):
 **Why Canvas API over the JSON patch #14 originally proposed:** the JSON patch bypasses Obsidian's in-memory canvas model — if Obsidian flushes its own save *after* the plugin's write, the reply gets clobbered. The Canvas API path (`workspace.getLeavesOfType('canvas')` → `view.canvas.nodes` Map → `node.setText()` → `canvas.requestSave()`) goes through the host's model so in-memory state and file stay in sync. Fragility shifts from state (silent data loss) to internal-API surface (loud failure on Obsidian rename).
 
 **P16 implementation plan:**
+
 1. Branch on `filename.endsWith('.canvas')` in the reply path; route through new `writeCanvasReply()`.
 2. Try Canvas API first with a typed-narrow probe + try/catch.
 3. Fall back to direct JSON patch when canvas leaf is closed (only remaining failure mode after the in-memory race is removed).
@@ -66,6 +85,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-28
-Stopped at: Canvas issues triaged; P16 added to ROADMAP. v0.2.0 requirements still pending — M008 has 3 phases scoped (P14, P15, P16).
-Resume file: .planning/ROADMAP.md (M008 phases)
+Last session: --stopped-at
+Stopped at: Phase 16 context gathered
+Resume file: --resume-file
