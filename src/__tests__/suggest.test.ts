@@ -154,10 +154,20 @@ describe("selectSuggestion wiring", () => {
 		vi.unstubAllGlobals();
 	});
 
-	function callSelectSuggestion(plugin: ReturnType<typeof makePlugin>, editor: any, value: string) {
+	function callSelectSuggestion(
+		plugin: ReturnType<typeof makePlugin>,
+		editor: any,
+		value: string,
+		fileOverride?: TFile | null
+	) {
 		const suggest = new ClaudeSuggest(plugin as any);
-		const file = new TFile();
-		file.path = "test.md";
+		let file: TFile | null;
+		if (fileOverride === undefined) {
+			file = new TFile();
+			file.path = "test.md";
+		} else {
+			file = fileOverride;
+		}
 
 		// Set up the context that selectSuggestion reads
 		(suggest as any).context = {
@@ -188,6 +198,45 @@ describe("selectSuggestion wiring", () => {
 		expect(mockSendPrompt).toHaveBeenCalledOnce();
 		expect(mockSendPrompt).toHaveBeenCalledWith(5555, {
 			filename: "test.md",
+			line: 0,
+			query: "hello",
+		});
+	});
+
+	it("falls back to getActiveFile() when context.file is null (canvas case — #7, #8)", async () => {
+		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r1" });
+		mockPollReply.mockResolvedValue({ ok: true, status: "pending" });
+
+		const plugin = makePlugin({ activeFilePath: "My Canvas.canvas" });
+		const editor = makeEditorWithLines([";;hello"]);
+
+		// Canvas text nodes give EditorSuggest no backing TFile — context.file is null.
+		// The plugin must fall back to workspace.getActiveFile() which returns the .canvas file.
+		callSelectSuggestion(plugin, editor, "hello", null);
+
+		await vi.advanceTimersByTimeAsync(0);
+
+		expect(mockSendPrompt).toHaveBeenCalledOnce();
+		expect(mockSendPrompt).toHaveBeenCalledWith(4321, {
+			filename: "My Canvas.canvas",
+			line: 0,
+			query: "hello",
+		});
+	});
+
+	it("sends empty filename when context.file is null AND no active file", async () => {
+		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r1" });
+		mockPollReply.mockResolvedValue({ ok: true, status: "pending" });
+
+		const plugin = makePlugin({ activeFilePath: null });
+		const editor = makeEditorWithLines([";;hello"]);
+
+		callSelectSuggestion(plugin, editor, "hello", null);
+
+		await vi.advanceTimersByTimeAsync(0);
+
+		expect(mockSendPrompt).toHaveBeenCalledWith(4321, {
+			filename: "",
 			line: 0,
 			query: "hello",
 		});
