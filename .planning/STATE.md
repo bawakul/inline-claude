@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v0.2.0
 milestone_name: — Install Hygiene & Channel Scoping
-status: Executing phase 16
-stopped_at: Phase 16 plan 01 complete (Wave 0 mocks + canvas.test.ts skeleton)
-last_updated: "2026-04-29T16:16:56.320Z"
-last_activity: "2026-04-29 — Phase 16 Plan 01 complete: Vault mock with atomic process(), JSON Canvas fixture, canvas.test.ts skeleton with 23 it.todo placeholders. 80 passing + 23 todo."
+status: completed
+stopped_at: Phase 16 context gathered
+last_updated: "2026-04-29T16:25:55Z"
+last_activity: "2026-04-29 — Phase 16 Plan 02 complete: src/canvas.ts (5 helpers, full D-08 corrected probe, atomic vault.process JSON patch, DOM-containment fallback) + 29 canvas tests resolving all 23 it.todo placeholders. Suite: 108 passing, 0 todo."
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 5
-  completed_plans: 1
-  percent: 20
+  completed_plans: 3
+  percent: 60
 ---
 
 # Project State
@@ -25,9 +25,9 @@ See: .planning/PROJECT.md
 ## Current Position
 
 Phase: 16 — canvas-reply-via-canvas-api
-Plan: 01 (complete) — next: 02 / 03 (Wave 1, can run in parallel)
-Status: Wave 0 complete
-Last activity: 2026-04-29 — Phase 16 Plan 01 complete: Wave 0 mocks (Vault.process atomic), JSON Canvas fixture, canvas.test.ts skeleton with 23 it.todo placeholders. Suite: 80 passing + 23 todo.
+Plan: 02 (complete) — next: 04 (Wave 3 — suggest.ts wiring, depends on 02 + 03)
+Status: Wave 2 complete (Plan 02); Wave 2 parallel (Plan 03) status tracked separately
+Last activity: 2026-04-29 — Phase 16 Plan 02 complete: src/canvas.ts (5 helpers — probe, find, write, patch, dispatch) with full D-08 corrected probe, atomic vault.process JSON patch, DOM-containment fallback in findCanvasNodeIdForEditor; canvas.test.ts now 29 tests, 0 it.todo. Suite: 108 passing.
 
 ## Accumulated Context
 
