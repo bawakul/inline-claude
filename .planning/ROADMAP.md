@@ -64,7 +64,7 @@
 **Plans:** 5 plans
 
 Plans:
-- [ ] 16-01-PLAN.md — Wave 0: Vault mock with atomic process(), App.workspace.getLeavesOfType, JSON Canvas fixture, and canvas.test.ts skeleton
+- [x] 16-01-PLAN.md — Wave 0: Vault mock with atomic process(), App.workspace.getLeavesOfType, JSON Canvas fixture, and canvas.test.ts skeleton
 - [ ] 16-02-PLAN.md — src/canvas.ts module: probeCanvasApi, findCanvasNodeIdForEditor, writeCanvasReply, patchCanvasJson, deliverCanvasReply (uses setData not setText per RESEARCH; vault.process not vault.modify)
 - [ ] 16-03-PLAN.md — Extend activePollers value shape to PollerEntry { intervalId, canvasNodeId } in src/main.ts (parallel with 16-02)
 - [ ] 16-04-PLAN.md — Wire canvas branch into src/suggest.ts (trigger probe + reply fork through deliverCanvasReply with Canvas-API-aware error UX)
