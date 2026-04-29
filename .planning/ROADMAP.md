@@ -69,3 +69,21 @@ Plans:
 - [x] 16-03-PLAN.md — Extend activePollers value shape to PollerEntry { intervalId, canvasNodeId } in src/main.ts (completed 2026-04-29; PollerEntry round-trip and onunload cleanup tested)
 - [x] 16-04-PLAN.md — Wire canvas branch into src/suggest.ts (completed 2026-04-29; trigger probe + 4 reply-site forks routing through Canvas API; D-09 enforced — zero replaceCalloutBlock(editor, ...) on canvas branch; D-06 markdown branch byte-identical; +7 tests, suite at 121 passing)
 - [x] 16-05-PLAN.md — Manual E2E checklist (5 scenarios in real Obsidian) — completed 2026-04-29; 4/5 pass (1, 2, 4, 5), Scenario 3 documented as known gap (closed-leaf-with-mid-flight reply, two-layer Obsidian-internal + replacePendingCalloutText silent-no-op root cause). Wave 4 also surfaced and fixed a file-change cancellation regression (eb61059).
+
+## Backlog
+
+### Phase 999.1: canvas-reply scenario 3 closed-leaf fallback fixes (BACKLOG)
+
+**Goal:** Close the remaining sub-bullet of #14 — the closed-leaf-with-mid-flight reply path documented as a known gap in Phase 16. Two related fixes:
+
+1. **Tactical (cheap, fully solves the silent-no-op layer):** Extend `replacePendingCalloutText` in `src/canvas.ts:93` with a trigger-text fallback (`;;${query}`) and a final append-on-new-line fallback. Convert silent no-ops in `writeCanvasReply` and `patchCanvasJson` to `{ok:false, reason:"no-pending-callout"}` and surface a Notice.
+
+2. **Architectural (eliminates the Obsidian-internal crash):** Replace `editor.replaceRange` for canvas placeholder insertion with a Canvas-API write — e.g., `node.setData` with placeholder content at trigger time. Eliminates the `getFoldInfo` deferred-save crash that fires when the canvas leaf closes mid-flight. Larger refactor — needs a `writeCanvasPlaceholder` helper and careful ordering with suggestion-accept side effects.
+
+**Context:** Phase 16 shipped at `83fddc5` with Scenario 3 as a documented known gap. Full forensics in `.planning/phases/16-canvas-reply-via-canvas-api/16-MANUAL-E2E.md` (Scenario 3 §Observed) and `16-05-SUMMARY.md`. Disk evidence on `inline-claude-brainstorm-canvas.canvas` shows nodes with `;;ping` (placeholder rolled back, patch silently no-op'd) and `[!claude] ping` without reply (placeholder persisted, patch missed).
+
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
