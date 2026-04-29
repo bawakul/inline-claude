@@ -186,9 +186,12 @@ export class ClaudeSuggest extends EditorSuggest<string> {
 			const startTime = Date.now();
 
 			const intervalId = setInterval(async () => {
-				// Check if user navigated away
+				// Markdown path: cancel if the user navigated away (editor.replaceRange
+				// needs the active editor). Canvas path: keep polling — deliverCanvasReply
+				// writes via Canvas API or JSON-patch fallback, neither of which cares
+				// about focus, and the markdown #14 race doesn't apply here.
 				const activeFile = this.plugin.app.workspace.getActiveFile?.();
-				if (activeFile && activeFile.path !== filePath) {
+				if (activeFile && activeFile.path !== filePath && canvasNodeId === null) {
 					console.log(`File changed (${filePath} → ${activeFile.path}), cancelling poller for ${pollerId}`);
 					this.plugin.cancelPoller(pollerId);
 					return;

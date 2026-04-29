@@ -713,4 +713,62 @@ describe("canvas branch (P16 — D-01, D-03, D-06, D-07, D-09)", () => {
 		expect(errSpy).toHaveBeenCalled();
 		errSpy.mockRestore();
 	});
+
+	it("canvas branch survives file-change mid-poll: poller is NOT cancelled when activeFile changes (Wave 4 manual-E2E gap fix)", async () => {
+		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r-fc-canvas" });
+		mockPollReply
+			.mockResolvedValueOnce({ ok: true, status: "pending" })
+			.mockResolvedValueOnce({ ok: true, status: "complete", response: "delivered after focus shift" });
+
+		const editor = makeEditorWithLines([";;q"]);
+		const plugin = makePlugin({ activeFilePath: "My.canvas" });
+		const canvasMock = makeCanvasLeafFor("My.canvas", "q", editor);
+		plugin.app.workspace.getLeavesOfType = vi.fn(() => [canvasMock as any]);
+		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+		callSelectSuggestion(plugin, editor, "q", null);
+		await vi.advanceTimersByTimeAsync(0);
+
+		// Simulate user clicking into a different leaf mid-poll.
+		const otherFile = new TFile();
+		otherFile.path = "annotated-reader/annotated-reader.md";
+		plugin.app.workspace.getActiveFile = () => otherFile;
+
+		await vi.advanceTimersByTimeAsync(1000);
+		await vi.advanceTimersByTimeAsync(1000);
+		await Promise.resolve();
+		await Promise.resolve();
+
+		const fileChangeCancellation = logSpy.mock.calls.find(([msg]) =>
+			typeof msg === "string" && msg.startsWith("File changed"));
+		expect(fileChangeCancellation).toBeUndefined();
+
+		const setDataMock = canvasMock.view.canvas.nodes.get("node-x")!.setData;
+		expect(setDataMock).toHaveBeenCalled();
+		const arg = (setDataMock as any).mock.calls[(setDataMock as any).mock.calls.length - 1][0];
+		expect(arg.text).toContain("delivered after focus shift");
+
+		logSpy.mockRestore();
+	});
+
+	it("markdown branch still cancels on file-change (D-06 regression guard for the canvas-only fix)", async () => {
+		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r-fc-md" });
+		mockPollReply.mockResolvedValue({ ok: true, status: "pending" });
+
+		const editor = makeEditorWithLines([";;hello"]);
+		const plugin = makePlugin({ activeFilePath: "note.md" });
+		plugin.app.workspace.getLeavesOfType = vi.fn(() => [] as any[]);
+		const cancelSpy = vi.spyOn(plugin, "cancelPoller");
+
+		callSelectSuggestion(plugin, editor, "hello", null);
+		await vi.advanceTimersByTimeAsync(0);
+
+		const otherFile = new TFile();
+		otherFile.path = "other.md";
+		plugin.app.workspace.getActiveFile = () => otherFile;
+
+		await vi.advanceTimersByTimeAsync(1000);
+
+		expect(cancelSpy).toHaveBeenCalled();
+	});
 });
