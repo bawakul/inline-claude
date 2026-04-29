@@ -66,6 +66,6 @@
 Plans:
 - [x] 16-01-PLAN.md — Wave 0: Vault mock with atomic process(), App.workspace.getLeavesOfType, JSON Canvas fixture, and canvas.test.ts skeleton
 - [x] 16-02-PLAN.md — src/canvas.ts module: probeCanvasApi, findCanvasNodeIdForEditor, writeCanvasReply, patchCanvasJson, deliverCanvasReply (uses setData not setText per RESEARCH; vault.process not vault.modify) — completed 2026-04-29 with 29 canvas tests, 0 it.todo, full D-08 corrected probe, DOM-containment fallback
-- [ ] 16-03-PLAN.md — Extend activePollers value shape to PollerEntry { intervalId, canvasNodeId } in src/main.ts (parallel with 16-02)
-- [ ] 16-04-PLAN.md — Wire canvas branch into src/suggest.ts (trigger probe + reply fork through deliverCanvasReply with Canvas-API-aware error UX)
+- [x] 16-03-PLAN.md — Extend activePollers value shape to PollerEntry { intervalId, canvasNodeId } in src/main.ts (completed 2026-04-29; PollerEntry round-trip and onunload cleanup tested)
+- [x] 16-04-PLAN.md — Wire canvas branch into src/suggest.ts (completed 2026-04-29; trigger probe + 4 reply-site forks routing through Canvas API; D-09 enforced — zero replaceCalloutBlock(editor, ...) on canvas branch; D-06 markdown branch byte-identical; +7 tests, suite at 121 passing)
 - [ ] 16-05-PLAN.md — Manual E2E checklist (5 scenarios in real Obsidian)

@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.2.0
 milestone_name: — Install Hygiene & Channel Scoping
 status: completed
-stopped_at: Phase 16 context gathered
-last_updated: "2026-04-29T16:25:55Z"
-last_activity: "2026-04-29 — Phase 16 Plan 02 complete: src/canvas.ts (5 helpers, full D-08 corrected probe, atomic vault.process JSON patch, DOM-containment fallback) + 29 canvas tests resolving all 23 it.todo placeholders. Suite: 108 passing, 0 todo."
+stopped_at: Phase 16 Plan 04 complete (Wave 3 — suggest.ts wired to canvas API)
+last_updated: "2026-04-29T18:40:00Z"
+last_activity: "2026-04-29 — Phase 16 Plan 04 complete: src/suggest.ts wired to Canvas API at all 4 reply-write sites (success, send-failure, poll-error, timeout) via deliverCanvasReply / writeCanvasErrorCallout helper; trigger probe captures canvas node ID and threads to registerPoller. D-09 enforced: zero replaceCalloutBlock(editor, ...) in any canvas branch — closes #14. Markdown branch byte-identical (D-06). Suite: 121 passing (+7)."
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 5
-  completed_plans: 3
-  percent: 60
+  completed_plans: 4
+  percent: 80
 ---
 
 # Project State
@@ -25,9 +25,9 @@ See: .planning/PROJECT.md
 ## Current Position
 
 Phase: 16 — canvas-reply-via-canvas-api
-Plan: 02 (complete) — next: 04 (Wave 3 — suggest.ts wiring, depends on 02 + 03)
-Status: Wave 2 complete (Plan 02); Wave 2 parallel (Plan 03) status tracked separately
-Last activity: 2026-04-29 — Phase 16 Plan 02 complete: src/canvas.ts (5 helpers — probe, find, write, patch, dispatch) with full D-08 corrected probe, atomic vault.process JSON patch, DOM-containment fallback in findCanvasNodeIdForEditor; canvas.test.ts now 29 tests, 0 it.todo. Suite: 108 passing.
+Plan: 04 (complete) — next: 05 (Wave 4 — manual E2E validation against the live vault)
+Status: Wave 3 complete (Plan 04); waves 1–3 done (plans 01, 02, 03, 04). Plan 05 is manual E2E.
+Last activity: 2026-04-29 — Phase 16 Plan 04 complete: src/suggest.ts forks all 4 reply-write sites on filename.endsWith(".canvas"); canvas branch routes through deliverCanvasReply / writeCanvasErrorCallout (loud-failure UX with patchCanvasJson safety net + Notice + console.error); trigger-time canvas probe via findCanvasNodeIdForEditor; canvasNodeId threaded to registerPoller. D-06 + D-07 + D-09 enforced. Suite: 121 passing (+7).
 
 ## Accumulated Context
 
