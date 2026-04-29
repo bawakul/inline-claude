@@ -27,9 +27,16 @@
 - Within ≤ pollingTimeoutSecs, the placeholder is replaced by `> [!claude-done]+ ping` followed by Claude's response, all inside the same text node.
 - DevTools console shows `Inline Claude: first canvas trigger — node.child keys = [...]` exactly once for this Obsidian session.
 
-**Observed:** _(fill in: paste the console "node.child keys" line; describe what you saw)_
+**Observed:** Placeholder `> [!claude] ping` appeared inside the target text node and resolved in-place to `> [!claude-done]+ ping` + Claude's reply. No error Notice or red console output.
 
-**Result:** [ ] Pass  [ ] Fail  [ ] Skip — _(reason)_
+Console (first canvas trigger of session):
+```
+Inline Claude: first canvas trigger — node.child keys = ["_loaded","_events","_children","file","hoverPopover","editable","text","dirty","useIframe","requestSaveFolds","requestSave","app","containerEl","state","previewEl","editorEl","previewMode","scope","node"]
+```
+
+**Notable:** `node.child` exposes no `editor` key (only `editorEl` / `previewEl` / `previewMode`). The `findCanvasNodeIdForEditor` DOM-containment fallback (RESEARCH Pitfall 2 / Pattern 2) is the real-world hot path — `node.child.editor === editor` never matches. Unit tests cover this fallback; production now confirmed.
+
+**Result:** [x] Pass  [ ] Fail  [ ] Skip
 
 ---
 
