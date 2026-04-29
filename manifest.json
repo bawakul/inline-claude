@@ -1,7 +1,7 @@
 {
 	"id": "inline-claude",
 	"name": "Inline Claude",
-	"version": "0.1.9",
+	"version": "0.1.10",
 	"minAppVersion": "1.0.0",
 	"description": "Chat with Claude Code inline in your notes. Type ;; to ask questions, create files, use MCP servers, and modify your vault.",
 	"author": "Bawa Kulkarni",
