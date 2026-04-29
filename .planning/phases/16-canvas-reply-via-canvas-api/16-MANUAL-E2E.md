@@ -56,9 +56,20 @@ Inline Claude: first canvas trigger — node.child keys = ["_loaded","_events","
 - The reply lands inside the canvas text node in leaf A (still rendered, since the leaf is open even if unfocused).
 - Switching back to leaf A shows the `[!claude-done]+` callout in the same node where you typed.
 
-**Observed:** _(fill in)_
+**Observed:**
 
-**Result:** [ ] Pass  [ ] Fail  [ ] Skip
+**First attempt (pre-fix):** Reply did not arrive. Spinner kept spinning. Console showed:
+```
+File changed (inline-claude-brainstorm-canvas.canvas → annotated-reader/annotated-reader.md), cancelling poller for 64b9dd66-...
+Polling cancelled for 64b9dd66-...
+```
+The plugin's markdown-era `file-change` guard was cancelling canvas pollers as soon as the user clicked into a different leaf, before the reply could be delivered. Plans 02/03 added `PollerEntry.canvasNodeId` for exactly this kind of decision but Plan 04 only used it on the four reply-write paths and missed the cancellation guard.
+
+**Fix:** `eb61059` — `src/suggest.ts` cancellation guard now requires `canvasNodeId === null`. Canvas writes don't need the active editor (Canvas API + JSON-patch fallback both work in any focus state), and the #14 race the markdown guard protected against doesn't apply. Two regression tests added.
+
+**Re-test (post-fix):** Reply arrived inside the canvas node correctly. Console shows the legitimate post-completion `Polling cancelled` (no `File changed` prefix), confirming the guard didn't fire mid-poll.
+
+**Result:** [x] Pass  [ ] Fail  [ ] Skip — passes after fix `eb61059`. Original failure logged as a Wave 4 finding worth shipping with the phase.
 
 ---
 
