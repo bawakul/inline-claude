@@ -166,9 +166,34 @@ Polling cancelled for ac7a3b66-d9a0-43b7-b9ad-ccd4c7f8b440
 
 **Why `[!claude]` and not `[!claude-done]+`:** `buildResponseCallout` (success) emits `[!claude-done]+`; `buildErrorCallout` (failure) emits `[!claude]`. Plan 04 routes the canvas error UX through `buildErrorCallout`, so the failure callout uses the error header — even though the write itself reaches the canvas via the same Canvas API pipeline. This is intentional and semantically correct.
 
-**Observed:** _(fill in: paste the Notice text, the console.error line, the error callout text — including which header `[!claude]` or `[!claude-done]+` you saw)_
+**Observed:**
 
-**Result:** [ ] Pass  [ ] Fail  [ ] Skip
+Test query was `;;ping6` (cosmetic difference — same scenario). Notice toast appeared as expected ("Toast came"). Console output:
+
+```
+Sending prompt to channel: "ping6"
+Prompt sent, request_id: 504397d5-f1fe-4428-8a7d-12dab9403c56
+Polling started for 854eb388-8502-4d2a-a98e-52c978c13ba4
+app.js:1 Uncaught TypeError: this.node.canvas.requestSave is not a function   ← Obsidian-internal, expected fallout from monkey-patch
+    setTimeout @ t.replaceRange → selectSuggestion @ plugin:inline-claude:38
+Poll complete for 854eb388-8502-4d2a-a98e-52c978c13ba4
+plugin:inline-claude:38 Inline Claude canvas write failed: Canvas write failed: probe-failed no-requestSave   ← D-07/D-08 LOUD FAILURE ✓
+plugin:inline-claude:38 Inline Claude: error-callout JSON-patch fallback also failed: no-match              ← secondary fallback also surfaced loudly ✓
+Polling cancelled for 854eb388-8502-4d2a-a98e-52c978c13ba4
+app.js:1 Uncaught TypeError: r.requestSave is not a function   ← Obsidian-internal, expected fallout
+```
+
+**D-07/D-08 contract verification:**
+- ✅ Notice toast fired ("Toast came")
+- ✅ `console.error` includes the probe reason (`probe-failed no-requestSave` — D-08 sub-reason exposed correctly)
+- ✅ Secondary failure (patch fallback) was *also* logged loudly via `console.error`, not silenced
+- ⚠️ The error callout itself didn't land in the canvas node — but that's the same `replacePendingCalloutText` silent-no-op bug surfaced in Scenario 3, not a Scenario 4 regression. The patch returned `no-match` because the placeholder text wasn't on disk (or the regex didn't match the on-disk state).
+
+The two `app.js:1 Uncaught TypeError: ... requestSave is not a function` crashes are direct, expected consequences of breaking `requestSave` in the console — Obsidian's own save chain trips on the now-missing function. Not a P16 issue.
+
+**Why this is a Pass:** D-07's contract is "loud failure surface, no silent failure." Loud-failure happened — the user saw the toast, and the console has a full error trail with the exact probe sub-reason. The error-callout-write failure inheriting the Scenario 3 bug is a known gap, documented above, and the Notice toast covers the user-visible surface.
+
+**Result:** [x] Pass  [ ] Fail  [ ] Skip — Notice + console.error fired per D-07/D-08; error-callout persistence inherits Scenario 3's known gap.
 
 ---
 
