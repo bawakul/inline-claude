@@ -36,3 +36,36 @@
 - [ ] **Phase 14: channel-instructions-consolidation** — Move channel rules into MCP `instructions` capability; one-shot migration to strip `@.obsidian/plugins/inline-claude/CLAUDE.md` include from existing vaults' root `CLAUDE.md` (#10)
 - [ ] **Phase 15: install-hygiene-consent-and-removal** — Consent notice on first write, removal button that also kills orphan bun on configured port, document vault-touching writes (#12)
 - [ ] **Phase 16: canvas-reply-via-canvas-api** — Reply-back path for `.canvas` files: route through `app.workspace.getLeavesOfType('canvas')` → `view.canvas.nodes` → `node.setText()` → `canvas.requestSave()`. Fallback to JSON patch when canvas leaf is closed. Round-trip a node ID at trigger time for reliable reply matching. Fixes #14 via #15. Keeps markdown path untouched.
+
+### Phase 16: canvas-reply-via-canvas-api
+
+**Goal:** When a `;;` question is triggered from inside a `.canvas` text node, Claude's reply lands back inside that same node — using Obsidian's in-memory Canvas API as the primary write path so the reply survives Obsidian's own canvas saves.
+
+**Why:** Today the reply path uses `editor.replaceRange` against the canvas node's embedded CodeMirror sub-editor. That silently no-ops once focus leaves the node, so canvas users see a callout placeholder that never updates (#14). Earlier proposals (#15 originally) wrote a JSON patch directly to the `.canvas` file, but that races Obsidian's own canvas save and can be silently clobbered. Routing through `view.canvas.nodes.get(id).setText()` + `canvas.requestSave()` keeps in-memory state and disk in sync; fragility shifts from silent data loss to a loud failure on Obsidian internal-API rename.
+
+**Dependencies:** None. Independent of P14 (channel instructions) and P15 (install hygiene). Does not touch the markdown reply path.
+
+**Scope:**
+1. Branch on `filename.endsWith('.canvas')` in the reply path; route through a new `writeCanvasReply()` helper.
+2. Try the Canvas API first behind a typed-narrow probe + try/catch (`workspace.getLeavesOfType('canvas')` → matching `view.canvas.nodes` Map → `node.setText()` → `canvas.requestSave()`).
+3. Fall back to direct `.canvas` JSON patch only when no canvas leaf is open for that file (the only remaining failure mode once the in-memory race is eliminated).
+4. Round-trip a stable canvas node ID captured at `;;` trigger time, so the reply matches by ID instead of fuzzy `> [!claude] {query}` text.
+5. Markdown reply path stays untouched.
+
+**Out of scope:** Multi-node canvas conversations, canvas-specific UI affordances, anything in P14/P15.
+
+**Success criteria:**
+- `;;` from a canvas text node round-trips to a `[!claude-done]` callout inside that same node, both when the canvas is the active leaf and when it's open in a background leaf.
+- With the canvas leaf closed, the JSON-patch fallback writes the reply and Obsidian re-renders it on next open without losing user edits made in between.
+- Replies match the originating callout by node ID, not by query text — proven by a test where two `;;` callouts with identical query text receive distinct replies correctly.
+- Markdown notes still pass the existing reply-path test suite unchanged.
+- Closes #14. References #15 as the chosen approach.
+
+**Plans:** 5 plans
+
+Plans:
+- [ ] 16-01-PLAN.md — Wave 0: Vault mock with atomic process(), App.workspace.getLeavesOfType, JSON Canvas fixture, and canvas.test.ts skeleton
+- [ ] 16-02-PLAN.md — src/canvas.ts module: probeCanvasApi, findCanvasNodeIdForEditor, writeCanvasReply, patchCanvasJson, deliverCanvasReply (uses setData not setText per RESEARCH; vault.process not vault.modify)
+- [ ] 16-03-PLAN.md — Extend activePollers value shape to PollerEntry { intervalId, canvasNodeId } in src/main.ts (parallel with 16-02)
+- [ ] 16-04-PLAN.md — Wire canvas branch into src/suggest.ts (trigger probe + reply fork through deliverCanvasReply with Canvas-API-aware error UX)
+- [ ] 16-05-PLAN.md — Manual E2E checklist (5 scenarios in real Obsidian)
