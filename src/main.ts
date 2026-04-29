@@ -8,11 +8,19 @@ import {
 import { ensureSetup } from "./setup";
 import { requestUrl } from "obsidian";
 
+/**
+ * Per-request poller state. canvasNodeId is captured at trigger time when
+ * the request originates from a `.canvas` file (D-02), so the reply step
+ * can match by node ID rather than fuzzy query-text. null for markdown
+ * triggers and for canvas triggers where the probe missed (D-03).
+ */
+type PollerEntry = { intervalId: number; canvasNodeId: string | null };
+
 export default class ClaudeChatPlugin extends Plugin {
 	settings: ClaudeChatSettings = DEFAULT_SETTINGS;
 	lastQuery: { filename: string; line: number; query: string } | null =
 		null;
-	activePollers: Map<string, number> = new Map();
+	activePollers: Map<string, PollerEntry> = new Map();
 	channelHealthy: boolean = false;
 	/**
 	 * The session_id returned by the channel server's /health endpoint.
@@ -45,8 +53,8 @@ export default class ClaudeChatPlugin extends Plugin {
 
 	onunload() {
 		const count = this.activePollers.size;
-		for (const [, intervalId] of this.activePollers) {
-			clearInterval(intervalId);
+		for (const [, entry] of this.activePollers) {
+			clearInterval(entry.intervalId);
 		}
 		this.activePollers.clear();
 		if (count > 0) {
@@ -61,15 +69,19 @@ export default class ClaudeChatPlugin extends Plugin {
 		console.log("Inline Claude plugin unloaded");
 	}
 
-	registerPoller(requestId: string, intervalId: number): void {
-		this.activePollers.set(requestId, intervalId);
+	registerPoller(
+		requestId: string,
+		intervalId: number,
+		canvasNodeId: string | null = null,
+	): void {
+		this.activePollers.set(requestId, { intervalId, canvasNodeId });
 		console.log(`Polling started for ${requestId}`);
 	}
 
 	cancelPoller(requestId: string): void {
-		const intervalId = this.activePollers.get(requestId);
-		if (intervalId !== undefined) {
-			clearInterval(intervalId);
+		const entry = this.activePollers.get(requestId);
+		if (entry !== undefined) {
+			clearInterval(entry.intervalId);
 			this.activePollers.delete(requestId);
 			console.log(`Polling cancelled for ${requestId}`);
 		}
