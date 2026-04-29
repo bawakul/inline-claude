@@ -88,9 +88,47 @@ The plugin's markdown-era `file-change` guard was cancelling canvas pollers as s
 - Any unrelated edits made elsewhere in the canvas BEFORE you closed the leaf are preserved.
 - The `.canvas` file diff shows only the target node's `text` field changed (run `git diff` to verify).
 
-**Observed:** _(fill in; paste a `git diff --stat` if useful)_
+**Observed (FAIL — two-layer root cause):**
 
-**Result:** [ ] Pass  [ ] Fail  [ ] Skip
+After closing the canvas leaf and re-opening, the target node showed the original `;;ping3` text instead of the reply. The placeholder loading-state callout *did* render in the editor before close (visually confirmed), but never made it to disk.
+
+**DevTools console at trigger time:**
+```
+Sending prompt to channel: "ping"
+Prompt sent, request_id: 18c9f9a3-a0ec-4465-840f-862c0af571fd
+Polling started for ac7a3b66-d9a0-43b7-b9ad-ccd4c7f8b440
+app.js:1 Uncaught TypeError: Cannot read properties of null (reading 'path')
+    at t.get (app.js:1:3149047)
+    at t.getFoldInfo (app.js:1:3149172)
+    at t.set (app.js:1:2451914)
+    at t.set (app.js:1:2453829)
+    at t.save (app.js:1:2453762)
+    at t.save (app.js:1:3148620)
+    at t.<anonymous> (app.js:1:2453222)
+    at c (app.js:1:552123)
+    at u (app.js:1:552243)
+    setTimeout (deferred)
+    h → t.save → t.save → t.onUpdate → dispatchTransactions → t.replaceRange → selectSuggestion @ plugin:inline-claude:38
+Poll complete for ac7a3b66-d9a0-43b7-b9ad-ccd4c7f8b440
+Polling cancelled for ac7a3b66-d9a0-43b7-b9ad-ccd4c7f8b440
+```
+
+**On-disk forensics** (`inline-claude-brainstorm-canvas.canvas`, three failure-mode nodes observed across multiple Scenario 3 attempts):
+- `b5999a09` and `0aa37e9f`: `;;ping` — trigger text; placeholder write was rolled back, patch silently no-op'd.
+- `83446c9b`: `> [!claude] ping\n\n` — placeholder persisted, reply never appended.
+
+**Two-layer root cause:**
+
+**Layer 1 — Obsidian-internal crash.** `editor.replaceRange` against the canvas-embedded CodeMirror schedules a deferred fold-info save (via `setTimeout`). When the user closes the canvas leaf before that timer fires, the deferred save runs against a now-null file reference and crashes inside `getFoldInfo`. This crash can poison the canvas's persistence chain, preventing the placeholder from being written to disk. Obsidian bug, not ours, but our use of `editor.replaceRange` against an embedded CodeMirror is what triggers it.
+
+**Layer 2 — Silent no-op in our patch.** `replacePendingCalloutText` (in `src/canvas.ts:93`) uses a regex that only matches the canonical placeholder `> [!claude] ${query}`. When Layer 1 prevented the placeholder from reaching disk, the patch reads the on-disk text (`;;ping3`), calls `text.replace(placeholderRegex, response)`, gets the unchanged input back, writes it as-is, and reports `{ok: true}`. Both `writeCanvasReply` (line 244) and `patchCanvasJson` (line 308) inherit this behavior.
+
+**Decision:** Ship Phase 16 with this scenario as a documented known gap. The other four scenarios cover the high-frequency paths (#14 is fully closed for open-leaf and background-leaf cases). Closed-leaf with mid-flight reply is the rarest path and depends on an Obsidian-internal flake we can't directly fix. Two follow-ups are planned (see `16-DEFERRED.md` once filed):
+
+1. **Tactical:** extend `replacePendingCalloutText` with a trigger-text fallback (`;;${query}`) and a final append-on-new-line fallback. Convert silent no-ops to `{ok: false, reason: "no-pending-callout"}` and surface a Notice. Cheap change, fully solves Layer 2.
+2. **Architectural:** replace `editor.replaceRange` for canvas placeholder insertion with a Canvas-API write (`node.setData` with the placeholder content). Eliminates Layer 1 entirely. Larger refactor.
+
+**Result:** [ ] Pass  [x] Fail  [ ] Skip — known gap; ship anyway.
 
 ---
 
