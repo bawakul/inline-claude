@@ -64,6 +64,7 @@ export class Plugin {
 }
 
 export class App {
+	vault: Vault = new Vault();
 	workspace = {
 		getActiveFile: (): TFile | null => {
 			const f = new TFile();
@@ -73,7 +74,69 @@ export class App {
 		activeEditor: {
 			editor: new Editor(),
 		} as any,
+		// Default returns empty list — tests override per scenario via:
+		//   plugin.app.workspace.getLeavesOfType = vi.fn(() => [<mock leaf>]);
+		getLeavesOfType: (_type: string): any[] => [],
 	};
+}
+
+/**
+ * Mock of Obsidian's Vault — minimal shape for canvas / file-patch tests.
+ *
+ * Mirrors the documented atomic `process(file, fn)` contract from
+ * obsidian.d.ts (since 1.1.0): "Atomically read, modify, and save the
+ * contents of a note." This is the primitive the closed-leaf JSON-patch
+ * fallback (D-04) relies on — using vault.read + vault.modify would be
+ * non-atomic and is the anti-pattern called out in 16-RESEARCH.md
+ * Anti-Pattern 1.
+ *
+ * Only test code reaches this class — Vitest's vi.mock("obsidian") only
+ * resolves it inside test files; production imports resolve to the real
+ * obsidian module.
+ */
+export class Vault {
+	// Test-private file store keyed by path.
+	private files: Map<string, { file: TFile; content: string }> = new Map();
+
+	/**
+	 * Test helper — NOT part of real Obsidian API. Seeds an in-memory file.
+	 * Returns the TFile so tests can pass it to process().
+	 */
+	_seed(path: string, content: string): TFile {
+		const f = new TFile();
+		f.path = path;
+		const slash = path.lastIndexOf("/");
+		const base = slash >= 0 ? path.slice(slash + 1) : path;
+		const dot = base.lastIndexOf(".");
+		f.basename = dot > 0 ? base.slice(0, dot) : base;
+		f.extension = dot > 0 ? base.slice(dot + 1) : "";
+		f.name = base;
+		this.files.set(path, { file: f, content });
+		return f;
+	}
+
+	getFileByPath(path: string): TFile | null {
+		return this.files.get(path)?.file ?? null;
+	}
+
+	/**
+	 * Mirrors Obsidian's Vault.process — atomic read-modify-write.
+	 * Calls fn with current content, stores returned content, returns it.
+	 */
+	async process(file: TFile, fn: (data: string) => string): Promise<string> {
+		const entry = this.files.get(file.path);
+		if (!entry) {
+			throw new Error(`Vault.process called on non-existent file: ${file.path}`);
+		}
+		const next = fn(entry.content);
+		this.files.set(file.path, { file: entry.file, content: next });
+		return next;
+	}
+
+	// Test helper — read seeded content directly (NOT in real Obsidian API).
+	_read(path: string): string | undefined {
+		return this.files.get(path)?.content;
+	}
 }
 
 export class Editor {
