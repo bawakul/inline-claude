@@ -63,7 +63,7 @@ vi.mock("../channel-client", () => ({
 
 // We need to import after the mock declarations are set up
 import { ClaudeSuggest } from "../suggest";
-import { App, Editor, TFile } from "obsidian";
+import { App, Editor, Notice, TFile } from "obsidian";
 
 // Track crypto.randomUUID calls with predictable return values
 let uuidCounter = 0;
@@ -95,9 +95,9 @@ function makePlugin(overrides?: {
 		},
 		lastQuery: null as any,
 		activePollers: new Map<string, number>(),
-		registerPoller(requestId: string, intervalId: number) {
+		registerPoller: vi.fn(function (this: any, requestId: string, intervalId: number, _canvasNodeId?: string | null) {
 			this.activePollers.set(requestId, intervalId);
-		},
+		}),
 		cancelPoller(requestId: string) {
 			const id = this.activePollers.get(requestId);
 			if (id !== undefined) {
@@ -458,5 +458,259 @@ describe("selectSuggestion wiring", () => {
 		const insertedText = insertCall[0];
 		// Should be: "> [!claude] hello\n\n"
 		expect(insertedText).toBe("> [!claude] hello\n\n");
+	});
+});
+
+describe("canvas branch (P16 — D-01, D-03, D-06, D-07, D-09)", () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+		mockSendPrompt.mockReset();
+		mockPollReply.mockReset();
+		(Notice as any).reset?.();
+		uuidCounter = 0;
+		vi.stubGlobal("crypto", {
+			...crypto,
+			randomUUID: () => {
+				uuidCounter++;
+				return `uuid-${uuidCounter}`;
+			},
+		});
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+		vi.unstubAllGlobals();
+	});
+
+	function callSelectSuggestion(
+		plugin: ReturnType<typeof makePlugin>,
+		editor: any,
+		value: string,
+		fileOverride?: TFile | null,
+	) {
+		const suggest = new ClaudeSuggest(plugin as any);
+		let file: TFile | null;
+		if (fileOverride === undefined) {
+			file = new TFile();
+			file.path = "test.md";
+		} else {
+			file = fileOverride;
+		}
+		(suggest as any).context = {
+			editor,
+			start: { line: 0, ch: 0 },
+			end: { line: 0, ch: value.length + 2 },
+			query: value,
+			file,
+		};
+		suggest.selectSuggestion(value, {} as MouseEvent);
+	}
+
+	function makeCanvasLeafFor(filename: string, query: string, editor: any) {
+		const node = {
+			id: "node-x",
+			child: { editor },
+			contentEl: { contains: () => false },
+			getData: vi.fn(() => ({
+				id: "node-x",
+				type: "text",
+				text: `> [!claude] ${query}`,
+				x: 0,
+				y: 0,
+				width: 100,
+				height: 100,
+			})),
+			setData: vi.fn(),
+		};
+		return {
+			view: {
+				file: { path: filename },
+				canvas: {
+					nodes: new Map([["node-x", node]]),
+					requestSave: vi.fn(),
+				},
+			},
+		};
+	}
+
+	it("markdown branch (.md): pollResult.complete writes via replaceCalloutBlock AND does NOT invoke the canvas pipeline (D-06 / D-09 regression guard, checker warning #5)", async () => {
+		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r1" });
+		mockPollReply
+			.mockResolvedValueOnce({ ok: true, status: "pending" })
+			.mockResolvedValueOnce({ ok: true, status: "complete", response: "MD answer" });
+
+		const plugin = makePlugin({ activeFilePath: "note.md" });
+		const editor = makeEditorWithLines([";;hello"]);
+		const getLeavesSpy = vi.fn(() => [] as any[]);
+		plugin.app.workspace.getLeavesOfType = getLeavesSpy;
+
+		callSelectSuggestion(plugin, editor, "hello", null);
+		await vi.advanceTimersByTimeAsync(0);
+		await vi.advanceTimersByTimeAsync(1000);
+		await vi.advanceTimersByTimeAsync(1000);
+
+		const calls = (editor.replaceRange as any).mock.calls;
+		const responseCall = calls.find((c: any[]) =>
+			typeof c[0] === "string" && c[0].includes("[!claude-done]+ hello"));
+		expect(responseCall).toBeDefined();
+		expect(responseCall[0]).toContain("MD answer");
+
+		// REGRESSION GUARD (checker #5): canvas pipeline must NOT have been invoked.
+		expect(getLeavesSpy).not.toHaveBeenCalled();
+	});
+
+	it("canvas branch (.canvas) success: probe matches, reply dispatches through Canvas API; replaceCalloutBlock NOT used (D-09)", async () => {
+		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r2" });
+		mockPollReply
+			.mockResolvedValueOnce({ ok: true, status: "pending" })
+			.mockResolvedValueOnce({ ok: true, status: "complete", response: "Canvas answer" });
+
+		const editor = makeEditorWithLines([";;q"]);
+		const plugin = makePlugin({ activeFilePath: "My.canvas" });
+		const canvasMock = makeCanvasLeafFor("My.canvas", "q", editor);
+		plugin.app.workspace.getLeavesOfType = vi.fn(() => [canvasMock as any]);
+
+		callSelectSuggestion(plugin, editor, "q", null);
+		await vi.advanceTimersByTimeAsync(0);
+		await vi.advanceTimersByTimeAsync(1000);
+		await vi.advanceTimersByTimeAsync(1000);
+		// Allow microtasks for the async deliverCanvasReply call to settle.
+		await Promise.resolve();
+		await Promise.resolve();
+
+		const setDataMock = canvasMock.view.canvas.nodes.get("node-x")!.setData;
+		expect(setDataMock).toHaveBeenCalled();
+		const arg = (setDataMock as any).mock.calls[(setDataMock as any).mock.calls.length - 1][0];
+		expect(arg.text).toContain("Canvas answer");
+		expect(arg.text).toContain("[!claude-done]+ q");
+
+		// editor.replaceRange must NOT have been used for the response callout.
+		const calls = (editor.replaceRange as any).mock.calls;
+		const responseCall = calls.find((c: any[]) =>
+			typeof c[0] === "string" && c[0].includes("[!claude-done]+ q"));
+		expect(responseCall).toBeUndefined();
+	});
+
+	it("canvas trigger with no matching node logs console.warn and proceeds with canvasNodeId null (D-03)", async () => {
+		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r3" });
+		mockPollReply.mockResolvedValue({ ok: true, status: "pending" });
+
+		const editor = makeEditorWithLines([";;q"]);
+		const plugin = makePlugin({ activeFilePath: "Other.canvas" });
+		plugin.app.workspace.getLeavesOfType = vi.fn(() => [] as any[]); // no canvas leaves
+
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+		callSelectSuggestion(plugin, editor, "q", null);
+		await vi.advanceTimersByTimeAsync(0);
+
+		expect(warnSpy).toHaveBeenCalled();
+		const warnArg = warnSpy.mock.calls[0][0];
+		expect(String(warnArg)).toContain("Other.canvas");
+		expect(String(warnArg)).toContain("Falling back to query-text matching");
+
+		expect(plugin.registerPoller).toHaveBeenCalled();
+		const args = (plugin.registerPoller as any).mock.calls[0];
+		expect(args[2] === null || args[2] === undefined).toBe(true);
+
+		warnSpy.mockRestore();
+	});
+
+	it("canvas branch send-failure: error callout written via Canvas API, NOT via replaceCalloutBlock; Notice + console.error fired (D-07 send-fail)", async () => {
+		mockSendPrompt.mockResolvedValue({ ok: false, error: "channel down" });
+
+		const editor = makeEditorWithLines([";;q"]);
+		const plugin = makePlugin({ activeFilePath: "My.canvas" });
+		const canvasMock = makeCanvasLeafFor("My.canvas", "q", editor);
+		plugin.app.workspace.getLeavesOfType = vi.fn(() => [canvasMock as any]);
+		const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+		callSelectSuggestion(plugin, editor, "q", null);
+		await vi.advanceTimersByTimeAsync(0);
+		await Promise.resolve();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		const setDataMock = canvasMock.view.canvas.nodes.get("node-x")!.setData;
+		expect(setDataMock).toHaveBeenCalled();
+		const arg = (setDataMock as any).mock.calls[(setDataMock as any).mock.calls.length - 1][0];
+		expect(arg.text).toContain("channel down");
+		expect(arg.text).toContain("[!claude] q");
+
+		// editor.replaceRange must NOT have been used for the error callout body.
+		const calls = (editor.replaceRange as any).mock.calls;
+		const errCall = calls.find((c: any[]) =>
+			typeof c[0] === "string" && c[0].includes("channel down"));
+		expect(errCall).toBeUndefined();
+
+		expect((Notice as any).instances.length).toBeGreaterThan(0);
+		expect(errSpy).toHaveBeenCalled();
+		errSpy.mockRestore();
+	});
+
+	it("canvas branch poll-error: error callout written via Canvas API, NOT via replaceCalloutBlock; Notice + console.error fired (D-07 poll-error)", async () => {
+		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r5" });
+		mockPollReply
+			.mockResolvedValueOnce({ ok: true, status: "pending" })
+			.mockResolvedValueOnce({ ok: false, error: "5xx from server" });
+
+		const editor = makeEditorWithLines([";;q"]);
+		const plugin = makePlugin({ activeFilePath: "My.canvas" });
+		const canvasMock = makeCanvasLeafFor("My.canvas", "q", editor);
+		plugin.app.workspace.getLeavesOfType = vi.fn(() => [canvasMock as any]);
+		const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+		callSelectSuggestion(plugin, editor, "q", null);
+		await vi.advanceTimersByTimeAsync(0);
+		await vi.advanceTimersByTimeAsync(1000);
+		await vi.advanceTimersByTimeAsync(1000);
+		await Promise.resolve();
+		await Promise.resolve();
+
+		const setDataMock = canvasMock.view.canvas.nodes.get("node-x")!.setData;
+		expect(setDataMock).toHaveBeenCalled();
+		const arg = (setDataMock as any).mock.calls[(setDataMock as any).mock.calls.length - 1][0];
+		expect(arg.text).toContain("5xx from server");
+
+		const calls = (editor.replaceRange as any).mock.calls;
+		const errCall = calls.find((c: any[]) =>
+			typeof c[0] === "string" && c[0].includes("5xx from server"));
+		expect(errCall).toBeUndefined();
+
+		expect((Notice as any).instances.length).toBeGreaterThan(0);
+		expect(errSpy).toHaveBeenCalled();
+		errSpy.mockRestore();
+	});
+
+	it("canvas branch timeout: error callout written via Canvas API, NOT via replaceCalloutBlock; Notice + console.error fired (D-07 timeout)", async () => {
+		mockSendPrompt.mockResolvedValue({ ok: true, request_id: "r6" });
+		mockPollReply.mockResolvedValue({ ok: true, status: "pending" });
+
+		const editor = makeEditorWithLines([";;q"]);
+		const plugin = makePlugin({ activeFilePath: "My.canvas", pollingTimeoutSecs: 1 });
+		const canvasMock = makeCanvasLeafFor("My.canvas", "q", editor);
+		plugin.app.workspace.getLeavesOfType = vi.fn(() => [canvasMock as any]);
+		const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+		callSelectSuggestion(plugin, editor, "q", null);
+		await vi.advanceTimersByTimeAsync(0);
+		// Advance well past the 1-second timeout.
+		for (let i = 0; i < 5; i++) await vi.advanceTimersByTimeAsync(1000);
+		await Promise.resolve();
+		await Promise.resolve();
+
+		const setDataMock = canvasMock.view.canvas.nodes.get("node-x")!.setData;
+		expect(setDataMock).toHaveBeenCalled();
+		const arg = (setDataMock as any).mock.calls[(setDataMock as any).mock.calls.length - 1][0];
+		expect(arg.text).toContain("No response after");
+
+		const calls = (editor.replaceRange as any).mock.calls;
+		const errCall = calls.find((c: any[]) =>
+			typeof c[0] === "string" && c[0].includes("No response after"));
+		expect(errCall).toBeUndefined();
+
+		expect((Notice as any).instances.length).toBeGreaterThan(0);
+		expect(errSpy).toHaveBeenCalled();
+		errSpy.mockRestore();
 	});
 });

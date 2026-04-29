@@ -377,6 +377,20 @@ describe("writeCanvasReply (D-05, D-07)", () => {
 		);
 		expect(r).toEqual({ ok: false, reason: "no-leaf" });
 	});
+
+	it("delivers an arbitrary callout body (error-shaped) through setData when API is healthy — safety net for suggest.ts error UX", () => {
+		const mock = makeCanvasViewMock("x.canvas", [
+			{ id: "n1", text: "> [!claude] q" },
+		]);
+		const app = new App();
+		app.workspace.getLeavesOfType = vi.fn(() => [mock as any]);
+		const errorBody = `> [!claude] q\n> Channel error: channel down`;
+		const r = writeCanvasReply(app, "x.canvas", "n1", "q", errorBody);
+		expect(r).toEqual({ ok: true });
+		const setDataArg = (mock.view.canvas.nodes.get("n1") as any).setData.mock.calls[0][0];
+		expect(setDataArg.text).toContain("channel down");
+		expect(setDataArg.text).toContain("[!claude] q");
+	});
 });
 
 describe("patchCanvasJson (D-04, D-05)", () => {
