@@ -692,18 +692,18 @@ plugin.app.workspace.getLeavesOfType = vi.fn(() => [makeCanvasViewMock("test.can
 | A4 | `JSON.stringify(json, null, "\t")` produces output indistinguishable from Obsidian's own canvas writes | Pattern 4 | Low risk: even if mismatch, semantic content is identical; only diff noise. |
 | A5 | `getLeavesOfType('canvas')` returns leaves whose `view.file.path` is reliably set even for unfocused leaves | Architecture diagram | Verified in advanced-canvas plugin source — HIGH confidence. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **`node.child.editor` runtime presence** — community-typed `child` shows `data: string` and `editMode.cm.dom`, not `.editor`. Is `child.editor` actually present, or do we need to traverse `child.editMode.cm` to a CodeMirror EditorView and compare to `ctx.editor.cm`?
+1. **RESOLVED:** **`node.child.editor` runtime presence** — community-typed `child` shows `data: string` and `editMode.cm.dom`, not `.editor`. Is `child.editor` actually present, or do we need to traverse `child.editMode.cm` to a CodeMirror EditorView and compare to `ctx.editor.cm`?
    - What we know: `MarkdownFileInfo.editor?: Editor` exists and `workspace.activeEditor` IS a `MarkdownFileInfo` for canvas EmbeddedEditors `[CITED: deepwiki]`.
    - What's unclear: whether the Canvas's per-node `child` is itself a `MarkdownFileInfo`, or a different abstraction.
    - Recommendation: Plan a one-time runtime probe (console.log of `Object.keys(node.child)`) on the first canvas trigger. If `editor` is absent, use `node.contentEl.contains(editor.cm?.contentDOM)` as the identity test.
 
-2. **Reply-time probe-fail with leaf open: should we still try JSON patch as a last resort?**
+2. **RESOLVED:** **Reply-time probe-fail with leaf open: should we still try JSON patch as a last resort?**
    - D-08 says NO (probe-fail = loud failure, don't hide the canary). But that means a single API rename breaks every canvas user until the plugin is patched.
    - Recommendation: Keep D-08 as-is for the initial release (loud failure is the design goal per STATE.md). Revisit if the API surface proves more fragile than expected. Document this clearly in the error callout body so users know to file an issue.
 
-3. **What happens if `requestSave()` is debounced and the user immediately closes the canvas?**
+3. **RESOLVED:** **What happens if `requestSave()` is debounced and the user immediately closes the canvas?**
    - Possibly the in-memory write is lost.
    - Recommendation: Out of scope for P16; if it surfaces, address by awaiting `view.requestSave` if Obsidian exposes a Promise-returning variant in newer versions.
 
