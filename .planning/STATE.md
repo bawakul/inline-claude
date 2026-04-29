@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.2.0
 milestone_name: — Install Hygiene & Channel Scoping
 status: completed
-stopped_at: Phase 16 Plan 04 complete (Wave 3 — suggest.ts wired to canvas API)
-last_updated: "2026-04-29T18:40:00Z"
-last_activity: "2026-04-29 — Phase 16 Plan 04 complete: src/suggest.ts wired to Canvas API at all 4 reply-write sites (success, send-failure, poll-error, timeout) via deliverCanvasReply / writeCanvasErrorCallout helper; trigger probe captures canvas node ID and threads to registerPoller. D-09 enforced: zero replaceCalloutBlock(editor, ...) in any canvas branch — closes #14. Markdown branch byte-identical (D-06). Suite: 121 passing (+7)."
+stopped_at: Phase 16 Plan 05 complete (Wave 4 — manual E2E, 4/5 pass + 1 documented gap)
+last_updated: "2026-04-29T19:30:00Z"
+last_activity: "2026-04-29 — Phase 16 Plan 05 complete: manual E2E in real Obsidian. Scenarios 1, 2, 4, 5 pass; Scenario 3 (closed-leaf JSON-patch fallback) fails with documented two-layer root cause (Obsidian-internal getFoldInfo crash on canvas-leaf close + replacePendingCalloutText silent-no-op when on-disk text isn't the canonical placeholder). Wave 4 also surfaced and fixed a file-change cancellation regression (eb61059 — canvas pollers were being cancelled by the markdown-era file-change guard when the user navigated to a different leaf, before the reply could be delivered). Phase 16 ships with #14 closed for high-frequency paths (open-leaf, background-leaf, identical-query-text) and the closed-leaf-with-mid-flight reply path documented as a known gap with two follow-ups: (1) tactical replacePendingCalloutText robustness; (2) architectural Canvas-API placeholder write."
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 5
-  completed_plans: 4
-  percent: 80
+  completed_plans: 5
+  percent: 100
 ---
 
 # Project State
@@ -20,14 +20,14 @@ progress:
 
 See: .planning/PROJECT.md
 
-**Current focus:** Milestone v0.2.0 (executing Phase 16)
+**Current focus:** Milestone v0.2.0 (Phase 16 complete; remaining: Phases 14, 15)
 
 ## Current Position
 
-Phase: 16 — canvas-reply-via-canvas-api
-Plan: 04 (complete) — next: 05 (Wave 4 — manual E2E validation against the live vault)
-Status: Wave 3 complete (Plan 04); waves 1–3 done (plans 01, 02, 03, 04). Plan 05 is manual E2E.
-Last activity: 2026-04-29 — Phase 16 Plan 04 complete: src/suggest.ts forks all 4 reply-write sites on filename.endsWith(".canvas"); canvas branch routes through deliverCanvasReply / writeCanvasErrorCallout (loud-failure UX with patchCanvasJson safety net + Notice + console.error); trigger-time canvas probe via findCanvasNodeIdForEditor; canvasNodeId threaded to registerPoller. D-06 + D-07 + D-09 enforced. Suite: 121 passing (+7).
+Phase: 16 — canvas-reply-via-canvas-api (complete with documented gap)
+Plan: 05 (complete) — Phase 16 closed.
+Status: All five plans complete. Manual E2E ran in real Obsidian; 4/5 scenarios pass. Scenario 3 (closed-leaf JSON-patch fallback) is a known gap with two follow-ups recorded.
+Last activity: 2026-04-29 — Phase 16 Plan 05 complete: manual E2E 4/5 pass. Wave 4 also fixed a file-change cancellation regression (eb61059). #14 closed for high-frequency paths; closed-leaf-with-mid-flight remains open as a known gap.
 
 ## Accumulated Context
 

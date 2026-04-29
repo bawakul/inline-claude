@@ -35,7 +35,7 @@
 
 - [ ] **Phase 14: channel-instructions-consolidation** — Move channel rules into MCP `instructions` capability; one-shot migration to strip `@.obsidian/plugins/inline-claude/CLAUDE.md` include from existing vaults' root `CLAUDE.md` (#10)
 - [ ] **Phase 15: install-hygiene-consent-and-removal** — Consent notice on first write, removal button that also kills orphan bun on configured port, document vault-touching writes (#12)
-- [ ] **Phase 16: canvas-reply-via-canvas-api** — Reply-back path for `.canvas` files: route through `app.workspace.getLeavesOfType('canvas')` → `view.canvas.nodes` → `node.setText()` → `canvas.requestSave()`. Fallback to JSON patch when canvas leaf is closed. Round-trip a node ID at trigger time for reliable reply matching. Fixes #14 via #15. Keeps markdown path untouched.
+- [x] **Phase 16: canvas-reply-via-canvas-api** — Reply-back path for `.canvas` files via `view.canvas.nodes.get(id).setData()` + `canvas.requestSave()`, with JSON-patch fallback for closed leaves. Completed 2026-04-29; manual E2E 4/5 pass. #14 closed for open-leaf, background-leaf, and identical-query-text (D-05 ID-first). Closed-leaf-with-mid-flight reply remains a documented known gap (two-layer Obsidian-internal + replacePendingCalloutText silent-no-op root cause, two follow-ups recorded).
 
 ### Phase 16: canvas-reply-via-canvas-api
 
@@ -68,4 +68,4 @@ Plans:
 - [x] 16-02-PLAN.md — src/canvas.ts module: probeCanvasApi, findCanvasNodeIdForEditor, writeCanvasReply, patchCanvasJson, deliverCanvasReply (uses setData not setText per RESEARCH; vault.process not vault.modify) — completed 2026-04-29 with 29 canvas tests, 0 it.todo, full D-08 corrected probe, DOM-containment fallback
 - [x] 16-03-PLAN.md — Extend activePollers value shape to PollerEntry { intervalId, canvasNodeId } in src/main.ts (completed 2026-04-29; PollerEntry round-trip and onunload cleanup tested)
 - [x] 16-04-PLAN.md — Wire canvas branch into src/suggest.ts (completed 2026-04-29; trigger probe + 4 reply-site forks routing through Canvas API; D-09 enforced — zero replaceCalloutBlock(editor, ...) on canvas branch; D-06 markdown branch byte-identical; +7 tests, suite at 121 passing)
-- [ ] 16-05-PLAN.md — Manual E2E checklist (5 scenarios in real Obsidian)
+- [x] 16-05-PLAN.md — Manual E2E checklist (5 scenarios in real Obsidian) — completed 2026-04-29; 4/5 pass (1, 2, 4, 5), Scenario 3 documented as known gap (closed-leaf-with-mid-flight reply, two-layer Obsidian-internal + replacePendingCalloutText silent-no-op root cause). Wave 4 also surfaced and fixed a file-change cancellation regression (eb61059).

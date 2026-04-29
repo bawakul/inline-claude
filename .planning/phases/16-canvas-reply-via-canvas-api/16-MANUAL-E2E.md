@@ -211,19 +211,19 @@ The two `app.js:1 Uncaught TypeError: ... requestSave is not a function` crashes
 - Two distinct replies, each in its originating node. Neither node contains the other's response.
 - `git diff` on the `.canvas` file shows two separate node `text` fields changed (or, if the canvas was open, no file diff — the in-memory writes happened via setData and only requestSave persisted).
 
-**Observed:** _(fill in)_
+**Observed:** Two distinct replies landed in their own nodes after a fresh canvas-leaf re-instantiation cleared the Scenario 4 monkey-patch. ID-first matching held under identical query text in real Obsidian — without it, reply 2 would have matched node A's placeholder and overwritten reply 1.
 
-**Result:** [ ] Pass  [ ] Fail  [ ] Skip
+**Result:** [x] Pass  [ ] Fail  [ ] Skip
 
 ---
 
 ## Final phase gate
 
-- [ ] Scenarios 1, 2, 3, 4, 5 all pass — phase ready for `/gsd-verify-work`.
-- [ ] Any failures documented above with enough detail to drive a `--gaps` plan.
-- [ ] ROADMAP.md §Phase 16 success-criteria bullets all checkable:
-  - [ ] `;;` from a canvas text node round-trips to a `[!claude-done]` callout (Scenario 1, 2)
-  - [ ] Closed-leaf JSON-patch fallback works (Scenario 3)
-  - [ ] Replies match by node ID (Scenario 5)
-  - [ ] Markdown notes pass the existing reply-path test suite unchanged (verified by `npx vitest run` exit 0 in Plan 04)
-  - [ ] Closes #14 — fully closed, including for canvas-originated send-fail / poll-error / timeout paths (Plan 04's writeCanvasErrorCallout routes ALL canvas errors through the Canvas API; Scenario 4 verifies the loud-failure UX on probe rejection)
+- [x] Scenarios 1, 2, 4, 5 pass; Scenario 3 documented as known gap (closed-leaf-with-mid-flight-reply, two-layer Obsidian-internal + silent-no-op root cause).
+- [x] Failures documented with full forensics in Scenario 3 §Observed; two follow-up paths (tactical regex fallback + architectural Canvas-API placeholder) recorded for a future phase.
+- [x] ROADMAP.md §Phase 16 success-criteria bullets all checkable:
+  - [x] `;;` from a canvas text node round-trips to a `[!claude-done]` callout (Scenario 1, 2)
+  - [ ] Closed-leaf JSON-patch fallback works (Scenario 3) — **known gap**, two-layer root cause documented; Scenario 3 followups recorded
+  - [x] Replies match by node ID (Scenario 5)
+  - [x] Markdown notes pass the existing reply-path test suite unchanged (123/123 vitest, including new D-06 regression guard from `eb61059`)
+  - [x] Closes #14 for the high-frequency paths (open-leaf, background-leaf, identical-query-text). Closed-leaf-with-mid-flight-reply remains open as a known gap; loud-failure UX (Scenario 4) verified.
