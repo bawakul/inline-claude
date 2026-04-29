@@ -4,11 +4,13 @@ import {
 	EditorSuggest,
 	EditorSuggestContext,
 	EditorSuggestTriggerInfo,
+	Notice,
 	TFile,
 } from "obsidian";
 import type ClaudeChatPlugin from "./main";
 import { buildCalloutHeader, findCalloutBlock, replaceCalloutBlock, buildResponseCallout, buildErrorCallout, formatElapsed } from "./callout";
 import { sendPrompt, pollReply } from "./channel-client";
+import { findCanvasNodeIdForEditor, deliverCanvasReply, patchCanvasJson } from "./canvas";
 
 /**
  * Pure function for trigger detection — exported for unit testing.
@@ -73,6 +75,45 @@ export class ClaudeSuggest extends EditorSuggest<string> {
 		el.setText("Ask Claude: " + value);
 	}
 
+	/**
+	 * Write an error callout into a canvas text node via the Canvas API pipeline.
+	 *
+	 * Used by the three non-success branches (send-failure, poll-error, timeout)
+	 * when the trigger originated from a `.canvas` file. NEVER calls
+	 * replaceCalloutBlock(editor, ...) — that is the #14 bug class for canvas
+	 * (silently no-ops once focus leaves the embedded editor); routing through
+	 * deliverCanvasReply / patchCanvasJson is the D-09 contract.
+	 *
+	 * Per D-07, always surfaces the failure loudly: console.error + Notice toast.
+	 * If even patchCanvasJson fails (e.g. file deleted), Notice is the surface.
+	 */
+	private async writeCanvasErrorCallout(
+		filename: string,
+		nodeId: string | null,
+		query: string,
+		reason: string,
+		originalError?: unknown,
+	): Promise<void> {
+		console.error(`Inline Claude canvas write failed: ${reason}`, originalError);
+		new Notice("Inline Claude: Canvas API write failed. See console for details.");
+
+		const errorBody = buildErrorCallout(query, reason);
+
+		// Try the Canvas API pipeline first (open-leaf write or, if no leaf, JSON patch).
+		const result = await deliverCanvasReply(this.plugin.app, filename, nodeId, query, errorBody);
+		if (result.ok) return;
+
+		// deliverCanvasReply only fell back to patchCanvasJson on no-leaf; for any
+		// other failure (probe-failed / no-match / exception), force a final
+		// patchCanvasJson attempt so on-disk content gets the error callout.
+		// (patchCanvasJson is guaranteed to land when no leaf is open and is
+		//  the safest available write surface when the runtime API is broken.)
+		const patchResult = await patchCanvasJson(this.plugin.app, filename, nodeId, query, errorBody);
+		if (!patchResult.ok) {
+			console.error(`Inline Claude: error-callout JSON-patch fallback also failed: ${(patchResult as any).reason}`);
+		}
+	}
+
 	selectSuggestion(
 		value: string,
 		_evt: MouseEvent | KeyboardEvent
@@ -89,6 +130,21 @@ export class ClaudeSuggest extends EditorSuggest<string> {
 			? file.path
 			: this.plugin.app.workspace.getActiveFile()?.path ?? "";
 		const nearLine = start.line;
+
+		// Canvas trigger probe (D-01). When the user typed `;;` inside a `.canvas`
+		// text node, capture the canvas node ID so the reply step can match by ID
+		// (D-05) instead of fuzzy query text. Probe miss is non-fatal (D-03) — we
+		// log a warning and let the reply step fall back to query-text matching.
+		let canvasNodeId: string | null = null;
+		if (filename.endsWith(".canvas")) {
+			canvasNodeId = findCanvasNodeIdForEditor(this.plugin.app, filename, editor);
+			if (canvasNodeId === null) {
+				console.warn(
+					`Inline Claude: canvas trigger in ${filename} but no node matched ctx.editor. ` +
+					`Falling back to query-text matching at reply time.`,
+				);
+			}
+		}
 
 		// Insert single-line callout + blank line for cursor
 		editor.replaceRange(buildCalloutHeader(value) + "\n\n", start, end);
@@ -113,9 +169,13 @@ export class ClaudeSuggest extends EditorSuggest<string> {
 
 			if (!sendResult.ok) {
 				console.log(`Send failed: ${sendResult.error}`);
-				const range = findCalloutBlock(editor, value, nearLine);
-				if (range) {
-					replaceCalloutBlock(editor, range.from, range.to, buildErrorCallout(value, sendResult.error));
+				if (filename.endsWith(".canvas")) {
+					await this.writeCanvasErrorCallout(filename, canvasNodeId, value, sendResult.error);
+				} else {
+					const range = findCalloutBlock(editor, value, nearLine);
+					if (range) {
+						replaceCalloutBlock(editor, range.from, range.to, buildErrorCallout(value, sendResult.error));
+					}
 				}
 				return;
 			}
@@ -140,9 +200,13 @@ export class ClaudeSuggest extends EditorSuggest<string> {
 					const errorMsg = `No response after ${formatElapsed(elapsed)}.`;
 					console.log(`Poll timeout for ${pollerId} after ${elapsed}ms`);
 
-					const range = findCalloutBlock(editor, value, nearLine);
-					if (range) {
-						replaceCalloutBlock(editor, range.from, range.to, buildErrorCallout(value, errorMsg));
+					if (filename.endsWith(".canvas")) {
+						await this.writeCanvasErrorCallout(filename, canvasNodeId, value, errorMsg);
+					} else {
+						const range = findCalloutBlock(editor, value, nearLine);
+						if (range) {
+							replaceCalloutBlock(editor, range.from, range.to, buildErrorCallout(value, errorMsg));
+						}
 					}
 					this.plugin.cancelPoller(pollerId);
 					return;
@@ -152,9 +216,13 @@ export class ClaudeSuggest extends EditorSuggest<string> {
 
 				if (!pollResult.ok) {
 					console.log(`Poll error for ${pollerId}: ${pollResult.error}`);
-					const range = findCalloutBlock(editor, value, nearLine);
-					if (range) {
-						replaceCalloutBlock(editor, range.from, range.to, buildErrorCallout(value, pollResult.error));
+					if (filename.endsWith(".canvas")) {
+						await this.writeCanvasErrorCallout(filename, canvasNodeId, value, pollResult.error);
+					} else {
+						const range = findCalloutBlock(editor, value, nearLine);
+						if (range) {
+							replaceCalloutBlock(editor, range.from, range.to, buildErrorCallout(value, pollResult.error));
+						}
 					}
 					this.plugin.cancelPoller(pollerId);
 					return;
@@ -162,10 +230,30 @@ export class ClaudeSuggest extends EditorSuggest<string> {
 
 				if (pollResult.status === "complete") {
 					console.log(`Poll complete for ${pollerId}`);
-					const range = findCalloutBlock(editor, value, nearLine);
-					if (range) {
-						replaceCalloutBlock(editor, range.from, range.to, buildResponseCallout(value, pollResult.response));
+
+					if (filename.endsWith(".canvas")) {
+						const result = await deliverCanvasReply(
+							this.plugin.app,
+							filename,
+							canvasNodeId,
+							value,
+							buildResponseCallout(value, pollResult.response),
+						);
+						if (!result.ok) {
+							// D-07 loud failure on success-path write. Use the same canvas-aware
+							// error helper — never replaceCalloutBlock(editor, ...) on the canvas
+							// branch (that is the #14 bug class — see D-09 + PATTERNS.md note).
+							const reason = (result as any).reason ?? "unknown";
+							await this.writeCanvasErrorCallout(filename, canvasNodeId, value, `Canvas write failed: ${reason}`, (result as any).error);
+						}
+					} else {
+						// Markdown path — UNCHANGED per D-06.
+						const range = findCalloutBlock(editor, value, nearLine);
+						if (range) {
+							replaceCalloutBlock(editor, range.from, range.to, buildResponseCallout(value, pollResult.response));
+						}
 					}
+
 					this.plugin.cancelPoller(pollerId);
 					return;
 				}
@@ -175,7 +263,7 @@ export class ClaudeSuggest extends EditorSuggest<string> {
 
 			// Register with both Obsidian (auto-cleanup) and our tracker
 			this.plugin.registerInterval(intervalId);
-			this.plugin.registerPoller(pollerId, intervalId);
+			this.plugin.registerPoller(pollerId, intervalId, canvasNodeId);
 		})();
 	}
 }
