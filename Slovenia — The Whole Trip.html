@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Slovenia — The Whole Trip · 16–23 Jul 2026</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root{
+    --ink:#1a1a1a; --mute:#6b6b6b; --line:#e2e0dc; --bg:#faf9f7; --card:#fff;
+    --guess:#b45309; --guess-bg:#fef6e7;
+    --book:#c02626; --book-bg:#fdeeee;
+    --ok:#15803d; --ok-bg:#edf7f0;
+    --de:#8b5cf6; --at:#ec4899; --si:#0ea5e9; --it:#22c55e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 20px 96px}
+  h1{font-size:34px;line-height:1.15;margin:0 0 6px;letter-spacing:-.02em}
+  .sub{color:var(--mute);margin:0 0 28px;font-size:16px}
+  h2{font-size:13px;letter-spacing:.13em;text-transform:uppercase;color:var(--mute);
+    margin:48px 0 14px;font-weight:700;border-bottom:1px solid var(--line);padding-bottom:8px}
+  h3{font-size:19px;margin:26px 0 10px;letter-spacing:-.01em}
+
+  .legend{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin:0 0 8px}
+  .legend b.hd{display:block;font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:var(--mute);margin-bottom:10px}
+  .legend div{margin:5px 0;font-size:15px}
+  .t-conf{font-variant-numeric:tabular-nums;font-weight:700;color:var(--ink)}
+  .t-guess{font-variant-numeric:tabular-nums;font-weight:700;color:var(--guess);
+    background:var(--guess-bg);padding:1px 6px;border-radius:4px}
+
+  table{width:100%;border-collapse:collapse;background:var(--card);
+    border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:15px}
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:8px}
+  th{background:#f4f2ef;text-align:left;padding:10px 12px;font-size:11px;
+    text-transform:uppercase;letter-spacing:.09em;color:var(--mute);white-space:nowrap}
+  td{padding:11px 12px;border-top:1px solid var(--line);vertical-align:top}
+  td.time{font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}
+  tr.amber td{background:var(--guess-bg)}
+  .pill{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.07em;
+    padding:2px 7px;border-radius:20px;text-transform:uppercase;white-space:nowrap}
+  .p-ok{background:var(--ok-bg);color:var(--ok)}
+  .p-book{background:var(--book-bg);color:var(--book)}
+  .p-guess{background:var(--guess-bg);color:var(--guess)}
+  .note{color:var(--mute);font-size:13.5px;display:block;margin-top:3px}
+
+  #map,#map2,#map3{height:440px;border-radius:10px;border:1px solid var(--line);
+    background:var(--card);z-index:0}
+  #map2,#map3{height:400px}
+  .maptip{color:var(--mute);font-size:13.5px;margin:8px 0 0}
+
+  .day{background:var(--card);border:1px solid var(--line);border-radius:10px;
+    padding:0;margin-bottom:16px;overflow:hidden}
+  .day > header{padding:14px 18px;border-bottom:1px solid var(--line);
+    display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;background:#f9f8f6}
+  .day > header .d{font-weight:800;font-size:17px}
+  .day > header .w{color:var(--mute);font-size:14px}
+  .day .body{padding:6px 18px 16px}
+  .row{display:flex;gap:14px;padding:10px 0;border-top:1px solid #f0eeea;align-items:baseline}
+  .row:first-child{border-top:0}
+  .row .t{flex:0 0 74px;font-variant-numeric:tabular-nums;font-weight:700;font-size:15px}
+  .row .t.g{color:var(--guess)}
+  .row .c{flex:1;min-width:0}
+
+  .callout{border-radius:8px;padding:13px 15px;margin:14px 0;font-size:14.5px;line-height:1.55}
+  .c-book{background:var(--book-bg);border-left:3px solid var(--book)}
+  .c-guess{background:var(--guess-bg);border-left:3px solid var(--guess)}
+  .callout b.hd{display:block;margin-bottom:4px}
+
+  ul.ck{list-style:none;padding:0;margin:0}
+  ul.ck li{background:var(--card);border:1px solid var(--line);border-radius:8px;
+    padding:13px 15px;margin-bottom:9px;display:flex;gap:12px;align-items:flex-start}
+  ul.ck li.done{opacity:.5}
+  ul.ck input{margin-top:4px;flex:0 0 auto;width:17px;height:17px;accent-color:var(--ok)}
+  ul.ck .k{flex:1;min-width:0}
+  ul.ck .k b{display:block;margin-bottom:2px}
+  ul.ck .k .m{color:var(--mute);font-size:13.5px}
+  ul.ck .k a{color:#0a58ca}
+  .deadline{font-size:10px;font-weight:800;letter-spacing:.06em;padding:2px 7px;
+    border-radius:20px;background:var(--book-bg);color:var(--book);white-space:nowrap;text-transform:uppercase}
+  .deadline.soft{background:#eef2f7;color:#475569}
+
+  details{background:var(--card);border:1px solid var(--line);border-radius:10px;
+    padding:12px 16px;margin-bottom:10px}
+  summary{cursor:pointer;font-weight:700;font-size:15px}
+  details[open] summary{margin-bottom:10px}
+  details table{border:0;border-radius:0}
+
+  .flag{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle}
+  .f-de{background:var(--de)}.f-at{background:var(--at)}.f-si{background:var(--si)}.f-it{background:var(--it)}
+
+  @media (max-width:640px){
+    h1{font-size:26px}
+    .row{flex-direction:column;gap:2px}
+    .row .t{flex:none}
+    .wrap{padding:20px 14px 80px}
+  }
+  @media print{
+    body{background:#fff}
+    #map,#map2,#map3{display:none}
+    .day,ul.ck li,table,.legend{break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Slovenia — the whole trip</h1>
+<p class="sub">
+  Thu 16 → Thu 23 July 2026 · Berlin → Munich → Bled → Ljubljana → Postojna → Trieste → Berlin<br>
+  <span class="flag f-de"></span>Germany <span class="flag f-at"></span>Austria
+  <span class="flag f-si"></span>Slovenia <span class="flag f-it"></span>Italy —
+  four countries, all Schengen, all euro. <b>No border checks, no currency changes.</b><br>
+  5 people (Bawa, Anu, Sanjeev, Anjana, Bhargav) → <b>4 from Mon 20 Jul</b>, when Bhargav flies home for his exam.
+</p>
+
+<div class="legend">
+  <b class="hd">How to read every time on this page</b>
+  <div><span class="t-conf">08:36</span> &nbsp;— <b>black</b> = it's printed on a ticket, or on an operator's own timetable. It will not change.</div>
+  <div><span class="t-guess">~08:30</span> &nbsp;— <b>amber</b> = a guess. Someone has to confirm it. It says who, and when.</div>
+  <div style="margin-top:10px;color:var(--mute);font-size:14px">
+    There are only <b>three amber legs</b> in this entire trip. Everything else is on a ticket.
+  </div>
+</div>
+
+<h2>The spine — 7 beds</h2>
+<div class="scroll">
+<table>
+<tr><th>Night</th><th>Where</th><th>What it is</th><th>How you get to the bed</th><th>Ref</th></tr>
+<tr>
+  <td class="time">Thu 16</td>
+  <td><b>Leonardo Hotel Olympiapark</b><span class="note">Dachauer Str. 199, Munich <span class="flag f-de"></span></span></td>
+  <td>2 rooms, 5 guests <span class="pill p-ok">Booked</span></td>
+  <td><b>Tram 20 or 21</b> from <i>Hauptbahnhof Nord</i> → Leonrodplatz (5 stops, 8 min), then 200 m walk. <b>~20 min.</b> Not a U-Bahn.</td>
+  <td class="note">5314.897.078<br>PIN 5643</td>
+</tr>
+<tr>
+  <td class="time">Fri 17<br>Sat 18</td>
+  <td><b>"Alpine Retreat"</b><span class="note">Stagne 22, Zasip <span class="flag f-si"></span></span></td>
+  <td>Farmhouse, 5 guests <span class="pill p-ok">Booked</span><span class="note">Self check-in, smart lock — <b>no desk, no deadline</b></span></td>
+  <td><span class="pill p-book">Must book</span> <b>Taxi VAN</b> from Bled Jezero station. <b>4.2 km / 9 min.</b> 5 people + bags <b>will not fit one car.</b></td>
+  <td class="note">HM88WPF4RA<br>Airbnb · Stuart</td>
+</tr>
+<tr>
+  <td class="time">Sun 19</td>
+  <td><b>Rooms &amp; Apts PazlarJerman</b><span class="note">Mlinska cesta 13, Bled <span class="flag f-si"></span></span></td>
+  <td>2-bed apt + terrace, ground floor <span class="pill p-ok">Booked</span><span class="note">Check-in 13:00 · checkout 10:00</span></td>
+  <td><span class="pill p-book">Must book</span> Taxi from Zasip, ~10 min, ~€10. <b>Bags need holding from ~10:30</b> — ask them.</td>
+  <td class="note">5666.067.553<br>PIN 0083</td>
+</tr>
+<tr>
+  <td class="time">Mon 20</td>
+  <td><b>Vila Majda</b><span class="note">Smoletova ul. 10, Bežigrad, Ljubljana <span class="flag f-si"></span></span></td>
+  <td>1-bed apt, 4 guests <span class="pill p-ok">Booked</span><span class="note">⚠️ 1 bedroom + sofa bed for 4 — a squeeze</span></td>
+  <td><b>Flat 10-min walk</b> from the bus station where you arrive. Arrival flagged 20:00–21:00. Tel <b>+386 40 632 020</b></td>
+  <td class="note">6762.474.252<br>PIN 0649</td>
+</tr>
+<tr>
+  <td class="time">Tue 21<br>Wed 22</td>
+  <td><b>"La Perla di San Giusto"</b><span class="note">Via Donato Bramante 7, Trieste <span class="flag f-it"></span></span></td>
+  <td>Attic flat, 4 guests <span class="pill p-ok">Booked</span></td>
+  <td>⚠️ <b>San Giusto is the castle HILL</b> — a steep climb from the station. <b>With suitcases: taxi</b> (~€10–15).</td>
+  <td class="note">HMZM3EP8TQ<br>Airbnb · Simonetta</td>
+</tr>
+</table>
+</div>
+
+<h2>The spine — every travel leg</h2>
+<div class="scroll">
+<table>
+<tr><th>When</th><th>From</th><th>To</th><th>Dep</th><th>Arr</th><th>Long</th><th>What</th><th></th></tr>
+
+<tr class="amber">
+  <td class="time">Thu 16</td><td>Home, Berlin</td><td>Berlin Hbf</td>
+  <td class="time" style="color:var(--guess)">~07:45</td><td class="time" style="color:var(--guess)">~08:15</td><td>—</td>
+  <td>Whatever gets 5 people + luggage there <b>20 min early</b>. <b>Nobody had written this leg down.</b></td>
+  <td><span class="pill p-guess">You decide</span></td>
+</tr>
+<tr>
+  <td class="time">Thu 16</td><td><b>Berlin Hbf</b><span class="note">platform 4</span></td><td><b>München Hbf</b><span class="note">platform 22</span></td>
+  <td class="time">08:36</td><td class="time">12:46</td><td>4h10</td>
+  <td><b>ICE 1005</b> "Sprinter". Seats reserved. <b>Has a restaurant car.</b></td>
+  <td><span class="pill p-ok">Ticket</span></td>
+</tr>
+<tr class="amber">
+  <td class="time">Fri 17</td><td>Leonardo Hotel</td><td>München Hbf</td>
+  <td class="time" style="color:var(--guess)">~09:20</td><td class="time" style="color:var(--guess)">~09:45</td><td>~20 min</td>
+  <td>Tram 20/21 back. <b>⚠️ Thursday's day ticket has expired — buy new ones.</b></td>
+  <td><span class="pill p-guess">You decide</span></td>
+</tr>
+<tr>
+  <td class="time">Fri 17</td><td><b>München Hbf</b><span class="note">platform 11</span></td><td><b>Jesenice</b> <span class="flag f-si"></span><span class="note">Slovenia, at the border</span></td>
+  <td class="time">10:16</td><td class="time">15:30</td><td><b>5h14</b></td>
+  <td><b>EC 115 "Mimara".</b> Via Salzburg <span class="flag f-at"></span> → the Tauern Railway → Villach → the Karawanks Tunnel.<span class="note">🍱 <b>NO restaurant car.</b> Buy lunch in Munich. · Sit on the <b>RIGHT</b>.</span></td>
+  <td><span class="pill p-ok">Ticket</span></td>
+</tr>
+<tr>
+  <td class="time">Fri 17</td><td>Jesenice</td><td><b>Bled Jezero</b><span class="note">the LAKESIDE station</span></td>
+  <td class="time">16:51</td><td class="time">17:05</td><td>14 min</td>
+  <td><b>R 601.</b> 1h21 wait at Jesenice — the station has a bar. Former steel town; not pretty.</td>
+  <td><span class="pill p-ok">Ticket</span></td>
+</tr>
+<tr>
+  <td class="time">Fri 17</td><td>Bled Jezero stn</td><td>Stagne 22, Zasip</td>
+  <td class="time">17:10</td><td class="time">17:20</td><td>9 min</td>
+  <td><b>Taxi VAN.</b> 4.2 km. No Uber/Bolt in Bled — phone-a-cab only, and <b>nothing waits at that station.</b></td>
+  <td><span class="pill p-book">Book it</span></td>
+</tr>
+
+<tr class="amber">
+  <td class="time">Sat 18</td><td>AP Bled<span class="note">= the Bled bus station</span></td><td>Ukanc / Zlatorog<span class="note">far end of <b>Lake Bohinj</b></span></td>
+  <td class="time" style="color:var(--guess)">~08:30</td><td class="time" style="color:var(--guess)">~09:20</td><td>~50 min</td>
+  <td><b>Arriva bus, ~hourly, ~€4pp.</b> ⚠️ <b>Nobody could verify a single departure time online.</b> Get them at the AP Bled ticket window on Friday evening.</td>
+  <td><span class="pill p-guess">Amber 1</span></td>
+</tr>
+<tr>
+  <td class="time">Sat 18</td><td>Ukanc <span class="note">(west end)</span></td><td>Ribčev Laz <span class="note">(east end)</span></td>
+  <td class="time">13:40</td><td class="time">14:10</td><td>30 min</td>
+  <td><b>Panoramic electric boat</b> across Lake Bohinj. €14 return / €9 one-way.</td>
+  <td><span class="pill p-ok">Turn up</span></td>
+</tr>
+<tr>
+  <td class="time">Sat 18</td><td>AP Bled</td><td>Zasip</td>
+  <td class="time">17:07</td><td class="time">17:19</td><td>12 min</td>
+  <td><b>Bled Bus "Countryside Line".</b> €5/day — <b>free with the Julian Alps Card</b>.<span class="note">🚨 <b>MISS THIS AND THE NEXT ONE IS 20:52.</b> Be at AP Bled by 16:55.</span></td>
+  <td><span class="pill p-ok">Turn up</span></td>
+</tr>
+
+<tr>
+  <td class="time">Mon 20</td><td><b>AP Bled</b></td><td><b>Ljubljana</b> bus stn<span class="note">next to the train station</span></td>
+  <td class="time">07:30</td><td class="time">08:47</td><td>1h17</td>
+  <td><b>Arriva coach, ~€7–8pp.</b> <b>CANNOT be booked online — pay the driver, CASH.</b> 1st bag free, €1.30 each extra. Be there 20 min early.<span class="note">Other Monday deps: 06:30 · 06:55 · 08:30 · 09:00 · 09:30, then ~every 30 min.</span></td>
+  <td><span class="pill p-ok">Turn up</span></td>
+</tr>
+<tr class="amber">
+  <td class="time">Mon 20</td><td>Ljubljana bus stn</td><td><b>Trieste Airport</b></td>
+  <td class="time" style="color:var(--guess)">~09:45</td><td class="time" style="color:var(--guess)">~11:10</td><td>1h20</td>
+  <td><b>Bhargav only.</b> GoOpti shared van (a pooled shuttle service), €15–30. Picks up <b>at the bus station you're already standing in.</b><span class="note">⚠️ You don't choose the pickup time — their optimiser does, and tells you the day before.</span></td>
+  <td><span class="pill p-book">Book it</span></td>
+</tr>
+<tr>
+  <td class="time">Mon 20</td><td>Trieste (TRS)</td><td>Berlin (BER)</td>
+  <td class="time">13:35</td><td class="time">15:05</td><td>1h30</td>
+  <td><b>Bhargav flies home.</b> Ryanair FR6781, res <b>T4LFJT</b>. Exam tomorrow.</td>
+  <td><span class="pill p-ok">Ticket</span></td>
+</tr>
+
+<tr class="amber">
+  <td class="time">Tue 21</td><td>Ljubljana stn</td><td>Postojna</td>
+  <td class="time" style="color:var(--guess)">~09:30</td><td class="time" style="color:var(--guess)">~10:45</td><td>~1h15</td>
+  <td><b>TRAIN, not the bus</b> — the bus drops you in the town; the train is what the cave collects from. ~€9–18pp.<span class="note">⚠️ Slovenian Railways' site blocks lookups. <b>Get the real time at Ljubljana station on Monday</b> — you're next to it all day.</span></td>
+  <td><span class="pill p-guess">Amber 2</span></td>
+</tr>
+<tr class="amber">
+  <td class="time">Tue 21</td><td>Postojna Cave</td><td>Via Bramante 7, Trieste <span class="flag f-it"></span></td>
+  <td class="time" style="color:var(--guess)">~17:45</td><td class="time" style="color:var(--guess)">~18:45</td><td>~50 min</td>
+  <td><b>Private van / GoOpti, door to door.</b><span class="note">🚨 <b>THERE IS NO RELIABLE SCHEDULED BUS ON THIS ROUTE.</b> FlixBus doesn't serve it; Arriva shows no departures; the booking sites are inventing operators. <b>Book a van.</b></span></td>
+  <td><span class="pill p-guess">Amber 3</span></td>
+</tr>
+
+<tr>
+  <td class="time">Thu 23</td><td>Trieste</td><td>Trieste Airport</td>
+  <td class="time">~17:30</td><td class="time">~18:20</td><td>28–45 min</td>
+  <td><b>Taxi = €60 FLAT FARE</b> (4 people = €15 each). No timetable risk, no dragging bags down the San Giusto hill. <b>Recommended.</b><span class="note">Or the train: Trieste Centrale → <i>Trieste Airport</i> station, 28 min, ~€5pp, ~every 30 min.</span></td>
+  <td><span class="pill p-book">Decide</span></td>
+</tr>
+<tr>
+  <td class="time">Thu 23</td><td>Trieste (TRS)</td><td>Berlin (BER)</td>
+  <td class="time">21:10</td><td class="time">22:40</td><td>1h30</td>
+  <td><b>All four fly home.</b> Ryanair FR6781, res <b>D7LS3U</b>.</td>
+  <td><span class="pill p-ok">Ticket</span></td>
+</tr>
+</table>
+</div>
+
+<div class="callout c-book">
+  <b class="hd">🎒 The packing bomb — sort this BEFORE you leave Berlin</b>
+  The return flight is <b>CABIN BAGS ONLY. NO HOLD LUGGAGE.</b> 2× Priority + 2 cabin bags; 2× only the free under-seat bag.
+  Whatever you carry down on the train on the 16th has to fly home in that.
+  <br><br><b>And do Ryanair online check-in for BOTH flights.</b> Airport check-in is ~€55 per person — that's ~€220 you can lose by forgetting.
+</div>
+
+<h2>Where everything actually is</h2>
+
+<h3>1 · The whole trip</h3>
+<div id="map"></div>
+<p class="maptip">Numbered pins = the 7 nights, in order. Coloured lines = each travel leg — click any of them for the times.</p>
+
+<h3>2 · Bled &amp; Bohinj — the bit that confuses everyone</h3>
+<div id="map2"></div>
+<p class="maptip">
+  <b>The two-stations trap:</b> <b>Lesce-Bled</b> (red) is on the main line and is <b>4 km from the lake</b> — most trains stop there and it is <b>NOT yours</b>. You arrive at <b>Bled Jezero</b>, the little lakeside halt (green). ·
+  <b>Zasip</b> is a hill village 4 km north — downhill to the lake, <b>uphill coming home</b>, so don't plan to walk it. ·
+  <b>Lake Bohinj is a different lake</b>, 26 km southwest. Saturday is a loop: bus to <b>Ukanc</b> (west end) → cable car up → <b>boat back east</b> to Ribčev Laz → bus home.
+</p>
+
+<h3>3 · Trieste</h3>
+<div id="map3"></div>
+<p class="maptip">Your flat is up on the <b>San Giusto hill</b> — the steep bit. Grotta Gigante is up on the Karst plateau (bus 42); Miramare is up the coast (bus 6/36); the airport is 33 km northwest and <b>not in Trieste</b>.</p>
+
+<h2>Day by day</h2>
+
+<div class="day">
+  <header><span class="d">Thu 16 Jul</span><span class="w">Berlin → Munich · <span class="flag f-de"></span>Germany</span></header>
+  <div class="body">
+    <div class="row"><div class="t">08:36</div><div class="c"><b>Berlin Hbf → München Hbf</b>, ICE 1005, <b>platform 4</b>. 4h10, restaurant car on board.</div></div>
+    <div class="row"><div class="t">12:46</div><div class="c">Arrive <b>München Hbf, platform 22</b>.</div></div>
+    <div class="row"><div class="t g">~13:10</div><div class="c"><b>Tram 20 or 21</b> from <i>Hauptbahnhof Nord</i> (the north side of the station) → <b>Leonrodplatz</b>, 5 stops / 8 min, then 200 m.<span class="note">Buy at the machine. A group day ticket for 5 exists — <b>check its price on the machine</b>; it's changed recently and may not beat 5 singles (€4.20 each).</span></div></div>
+    <div class="row"><div class="t g">~13:30</div><div class="c"><b>Leonardo Hotel Olympiapark.</b> Free afternoon — Olympiapark is on the doorstep.</div></div>
+    <div class="row"><div class="t">Evening</div><div class="c">🍱 <b>BUY TOMORROW'S LUNCH.</b> The Friday train has <b>no restaurant car</b> and it's a 5h14 ride.</div></div>
+  </div>
+</div>
+
+<div class="day">
+  <header><span class="d">Fri 17 Jul</span><span class="w">Munich → Bled · the long day (7h+ door to door)</span></header>
+  <div class="body">
+    <div class="row"><div class="t">10:16</div><div class="c"><b>EC 115 "Mimara", platform 11.</b> ⚠️ Thursday's tram ticket has expired — buy a new one to get to the station.</div></div>
+    <div class="row"><div class="t">12:45–<br>14:10</div><div class="c"><b>The scenic bit.</b> The Tauern Railway — Bischofshofen → Bad Gastein → the tunnel → Spittal. <b>Sit on the right.</b></div></div>
+    <div class="row"><div class="t">15:30</div><div class="c">Arrive <b>Jesenice</b> <span class="flag f-si"></span> — you're in Slovenia. <b>1h21 wait.</b> The station has a bar and a restaurant, but it's a former steel town — don't expect charm, and buy food earlier.</div></div>
+    <div class="row"><div class="t">16:51</div><div class="c"><b>R 601 → Bled Jezero.</b> 14 min.<span class="note">Running late? The next one is 18:05 → 18:19.</span></div></div>
+    <div class="row"><div class="t">17:05</div><div class="c">Arrive <b>Bled Jezero</b> — the lakeside halt. Small, quiet, <b>no taxis waiting.</b></div></div>
+    <div class="row"><div class="t">17:10</div><div class="c"><b>Pre-booked taxi VAN → Stagne 22, Zasip.</b> 4.2 km, 9 min.<span class="note">The house has a smart lock and self check-in — no desk, no deadline. Don't stress the "17:00 check-in".</span></div></div>
+    <div class="row"><div class="t">Evening</div><div class="c"><b>Stay put.</b> Do NOT try to walk down to the lake — it's 4.4 km and uphill on the way back. Farmhouse, supper, done.</div></div>
+  </div>
+</div>
+
+<div class="day">
+  <header><span class="d">Sat 18 Jul</span><span class="w">Bohinj &amp; Vogel ★ — two lifts, one boat, ~2.5 km of walking</span></header>
+  <div class="body">
+    <div class="callout c-guess"><b class="hd">⚠️ This whole day hangs on bus times nobody could verify</b>
+      Arriva's timetable is a JavaScript app that can't be read from outside. <b>On Friday evening, walk to the AP Bled ticket window and get two things:</b> the morning departures <b>to</b> Bohinj, <b>and</b> the afternoon departures <b>back</b> from Ribčev Laz. You need one that reaches AP Bled by <b>16:55</b>.</div>
+    <div class="row"><div class="t g">~08:00</div><div class="c">Taxi Zasip → <b>AP Bled</b> (the bus station). The village bus doesn't reach Bled until 09:25 — too late for a good start.</div></div>
+    <div class="row"><div class="t g">~08:30</div><div class="c"><b>Bus → Lake Bohinj</b> (a <i>different</i> lake, 26 km away). ~50 min, ~€4pp. <b>Get off at Ukanc / Zlatorog</b> — the FAR, western end, where the cable car is. Not Ribčev Laz.</div></div>
+    <div class="row"><div class="t">09:45</div><div class="c"><b>VOGEL CABLE CAR up.</b> €35 adult · <b>€31 for over-60s</b>. Runs 08:00–18:00.</div></div>
+    <div class="row"><div class="t">10:00</div><div class="c"><b>The top — 1,535 m.</b> Terrace, panorama across Bohinj to Triglav, meadow paths, a chairlift (09:00–16:00). <b>You can just sit.</b> This is the day they were promised.</div></div>
+    <div class="row"><div class="t">12:30</div><div class="c">Lunch at the top. The "Paket Orlove glave" bundles the return ticket + a daily menu for €44 — i.e. lunch for €9 more.</div></div>
+    <div class="row"><div class="t">13:30</div><div class="c">Cable car <b>down</b>.</div></div>
+    <div class="row"><div class="t">13:40</div><div class="c"><b>PANORAMIC BOAT, Ukanc → Ribčev Laz.</b> 30 min across the lake. €14 return / €9 one-way. The dock is inside the campsite, right by the cable car.</div></div>
+    <div class="row"><div class="t">14:10</div><div class="c"><b>Ribčev Laz</b> — the pretty end. The church of St John, the stone bridge, coffee by the water.</div></div>
+    <div class="row"><div class="t g">~15:45</div><div class="c"><b>Bus back to Bled.</b> ~40 min. <b>🚨 You must be at AP Bled by 16:55.</b></div></div>
+    <div class="row"><div class="t">17:07</div><div class="c"><b>Countryside Line: AP Bled 17:07 → ZASIP 17:19.</b> €5/day, or free with the Julian Alps Card.<span class="note">🚨 <b>Miss it and the next bus to Zasip is 20:52.</b> If you're going to miss it, <b>just take a taxi</b> — don't wait three and a half hours.</span></div></div>
+  </div>
+</div>
+
+<div class="day">
+  <header><span class="d">Sun 19 Jul</span><span class="w">Move to central Bled + the lake · ~3.5 km walking</span></header>
+  <div class="body">
+    <div class="row"><div class="t">10:00</div><div class="c"><b>Checkout, Alpine Retreat.</b> Ask Stuart about the <b>tourist tax</b> — the Airbnb price probably excludes it. Expect <b>~€31 cash</b> (5 × €3.13 × 2 nights).</div></div>
+    <div class="row"><div class="t">10:15</div><div class="c"><b>Taxi → Mlinska cesta 13</b> (central Bled). Pre-booked.</div></div>
+    <div class="row"><div class="t">10:30</div><div class="c"><b>Drop the bags.</b> Check-in isn't until 13:00 — <b>ask PazlarJerman in advance</b> to hold them.</div></div>
+    <div class="row"><div class="t">11:00</div><div class="c">Walk to <b>Mlino jetty</b> — 900 m, flat, ~12 min from the apartment.</div></div>
+    <div class="row"><div class="t">11:15</div><div class="c"><b>PLETNA BOAT to Bled Island.</b> €20pp — <b>CASH ONLY, to the boatman. €100 for 5.</b> ~25 min across, <b>40 minutes on the island</b> (he waits — and he leaves on time), 25 min back.<span class="note">⚠️ <b>40 minutes is tight.</b> It starts with <b>99 steps</b> up to the church, and church + tower + museum is another €12pp. <b>Either buy the church only and enjoy it, or ask the boatman for 60 minutes before you push off.</b> Don't pay €57 to run.</span></div></div>
+    <div class="row"><div class="t">12:45</div><div class="c">Back at Mlino. Lunch by the lake.</div></div>
+    <div class="row"><div class="t">13:00–<br>15:00</div><div class="c"><b>Rest.</b> Check into the apartment.<span class="note">The Lake Line bus has a dead zone 11:28 → 15:05 anyway. Don't fight it — this is a built-in siesta.</span></div></div>
+    <div class="row"><div class="t">15:26</div><div class="c">★ <b>Lake Line bus: MLINO 15:26 → GRAD / CASTLE 15:41.</b><br><b>The parents do not have to walk up the castle hill.</b> There is a bus stop at the castle. Almost nobody knows this.</div></div>
+    <div class="row"><div class="t">16:00</div><div class="c"><b>BLED CASTLE.</b> €19 adult (−10% with the Julian Alps Card). Open till 20:00. The terrace view over the lake is the one you've seen in photographs.</div></div>
+    <div class="row"><div class="t">17:06<br>or 19:06</div><div class="c">Lake Line back from Grad. Or walk down — 10–15 min, all downhill.</div></div>
+    <div class="row"><div class="t">Evening</div><div class="c">Dinner in Bled. The <b>Straža chairlift</b> is right by the apartment — <b>free with the Julian Alps Card</b>.</div></div>
+  </div>
+</div>
+
+<div class="day">
+  <header><span class="d">Mon 20 Jul</span><span class="w">Bled → Ljubljana · Bhargav flies home</span></header>
+  <div class="body">
+    <div class="callout c-book"><b class="hd">🚨 The 11-hour luggage hole — nobody had spotted this</b>
+      You reach Ljubljana at <b>08:47</b>. Vila Majda's arrival is flagged <b>20:00–21:00</b>. That's <b>eleven hours</b> — and it's an apartment, not a hotel with a bell desk. You are not doing the castle funicular with four suitcases.
+      <br><b>→ Call Vila Majda (+386 40 632 020)</b> and ask if you can drop bags in the morning. If not, use the <b>left-luggage at Ljubljana railway station</b>, which is right next to the bus station you arrive at.</div>
+    <div class="row"><div class="t g">~07:00</div><div class="c">Taxi / Lake Line from the apartment → <b>AP Bled</b>. Checkout is 10:00, but you're leaving before it.</div></div>
+    <div class="row"><div class="t">07:30</div><div class="c"><b>Everyone together: Arriva coach → Ljubljana.</b> Pay the <b>driver, in CASH</b>, ~€7–8pp. Be there 20 min early — peak July, and it cannot be booked online.</div></div>
+    <div class="row"><div class="t">08:47</div><div class="c">Arrive <b>Ljubljana bus station.</b> Deal with the bags (see above).</div></div>
+    <div class="row"><div class="t">~09:00</div><div class="c">☕ <b>THE GOODBYE.</b> The old town is a 10-minute walk. This is the whole reason for the early bus.</div></div>
+    <div class="row"><div class="t g">~09:45</div><div class="c"><b>Bhargav → Trieste Airport</b>, GoOpti shared van, from this same bus station. ~1h20.<span class="note">⚠️ <b>You don't get to pick the pickup time.</b> GoOpti's optimiser assigns it and tells you the day before. Give a <b>latest drop-off of 11:30</b> and pay for the <b>narrowest flexibility window</b> — a wide one could put him on an 08:30 pickup and eat the goodbye entirely.</span></div></div>
+    <div class="row"><div class="t">13:35</div><div class="c">✈️ <b>Bhargav flies TRS → BER.</b> Lands 15:05. Exam tomorrow.</div></div>
+    <div class="row"><div class="t">Day</div><div class="c"><b>The other four: Ljubljana.</b> A full day — castle funicular, the old town, the river, Tivoli park.</div></div>
+    <div class="row"><div class="t">20:00</div><div class="c"><b>Vila Majda</b>, Smoletova ulica 10. Flat 10-min walk from the bus station.</div></div>
+  </div>
+</div>
+
+<div class="day">
+  <header><span class="d">Tue 21 Jul</span><span class="w">Ljubljana → Postojna → Trieste · the hardest day</span></header>
+  <div class="body">
+    <div class="callout c-book"><b class="hd">☎️ EMAIL POSTOJNA TODAY — this day has a single point of failure</b>
+      <b>info@postojnska-jama.eu · +386 5 700 01 00</b><br><br>
+      A cave staff member has said publicly that they will <b>collect you free from Postojna train station AND hold your luggage</b>, if you contact them <b>3 days ahead</b>. <b>But this appears nowhere on their official site</b> — it's an undated forum post. Treat it as an <b>assumption, not a booking.</b><br><br>
+      <b>Ask, and get it in writing:</b> (1) Can you store <b>4 large suitcases</b> on 21 Jul? (2) <b>By what time must they be collected?</b> (3) Any fee? (4) Confirm the free transfer from the train station, and when to arrive.<br><br>
+      <b>Do not book the cave slot until they answer</b> — the answer to (2) decides which slot you can take.
+    </div>
+    <div class="row"><div class="t g">~09:30</div><div class="c"><b>TRAIN → Postojna</b> (~1h15). Checkout Vila Majda 10:00 — but you leave before it; it's a 10-min walk to the station with the bags.<span class="note"><b>The train, not the bus</b> — the bus drops you in the town; the train is what the cave collects from. ⚠️ Get the real time at Ljubljana station on Monday.</span></div></div>
+    <div class="row"><div class="t g">~10:45</div><div class="c">Postojna. Cave Park pickup. <b>Drop the bags.</b></div></div>
+    <div class="row"><div class="t">11:40</div><div class="c"><b>Shuttle → PREDJAMA CASTLE</b> (9 km — not walkable). 20 min. <b>€2pp return, CASH on board.</b><span class="note">A castle built into the mouth of a cliff cave. The park itself recommends doing Predjama <i>first</i>, the cave after.</span></div></div>
+    <div class="row"><div class="t">12:00–<br>14:30</div><div class="c"><b>Predjama.</b> 2½ hours. Shuttle back at <b>14:30</b> → at the cave 14:50.</div></div>
+    <div class="row"><div class="t">16:00</div><div class="c"><b>POSTOJNA CAVE.</b> <b>Timed entry — book online.</b> €49.90pp for the cave+castle combo (€58.90 at the door). <b>No senior discount.</b> ≈ €200 for 4.<span class="note">90 minutes. ~5 km underground, most of it <b>sitting on an electric train</b>, ~1 km on foot. Arrive 30 min early. <b>It's 13°C down there — bring a jacket.</b></span></div></div>
+    <div class="row"><div class="t">17:30</div><div class="c">Out. <b>Collect the bags.</b></div></div>
+    <div class="row"><div class="t g">~17:45</div><div class="c"><b>Private van → Trieste</b> <span class="flag f-it"></span>, door to door, ~50 min.<span class="note">🚨 <b>There is no reliable scheduled bus on this route.</b> FlixBus doesn't serve it. Arriva shows no departures. The booking sites are inventing operators. <b>Book a van.</b></span></div></div>
+    <div class="row"><div class="t g">~18:45</div><div class="c"><b>La Perla di San Giusto</b>, Via Donato Bramante 7. Up the castle hill — which is exactly why you want the van to take you to the door.</div></div>
+    <div class="callout c-guess"><b class="hd">Plan B — if the bags must be out by 16:00</b>
+      Flip the day: <b>cave at 11:00</b> (arrive 10:30) → out 12:30 → <b>Predjama shuttle 14:05</b> → back <b>15:30</b> → bags by 15:50 → van at 16:00. It works, but it needs an earlier train. <b>This is exactly why you email them first.</b></div>
+  </div>
+</div>
+
+<div class="day">
+  <header><span class="d">Wed 22 Jul</span><span class="w">Trieste — one clean trip, not two</span></header>
+  <div class="body">
+    <div class="row"><div class="t">Morning</div><div class="c"><b>GROTTA GIGANTE</b> — the largest show cave in the world by volume; one chamber you could stand a cathedral inside.
+      <br><b>☎️ BOOKING IS COMPULSORY: +39 040 327312.</b> €15 adult / €12 over-65. Guided only, fixed slots: 09:00 · 10:00 · 11:00 · 12:00 · 14:00 · 15:00 · 16:00.
+      <span class="note">⚠️ <b>~500 steps on the way down.</b> Ask them about this when you call — it's the one thing that may not suit your parents.</span>
+      <span class="note">🚌 <b>Bus 42</b> from Viale Miramare, next to Trieste Centrale (outside the PAM supermarket). ~35 min. <b>Ask which bus 42 to take for your slot when you book — they get asked daily.</b></span>
+      <span class="note">⚠️ Guidebooks will tell you to take the <b>Opicina tram</b>. It's been out of service since Oct 2025, but the local press (8 Jul 2026) says it may restart around 15–16 Jul. <b>Check triestetrasporti.it on the day</b> — it's the nicer ride if it's back.</span></div></div>
+    <div class="row"><div class="t">Afternoon</div><div class="c"><b>MIRAMARE CASTLE</b> — a white Habsburg fantasy on a promontory over the Adriatic, built for an archduke who was later shot in Mexico.
+      <br><b>Bus 6 or 36</b> from the centre along the Barcola seafront → "Bivio di Miramare", then a ~750 m walk. €17 (<b>no senior discount</b> — the reduced rate is for EU 18–25s). <b>The park is free.</b> Castle open till 19:00, last entry 18:30.</div></div>
+    <div class="row"><div class="t">Evening</div><div class="c"><b>Trieste.</b> Piazza Unità — the biggest sea-facing square in Europe. The old Viennese coffee houses. It's flat and walkable down here, unlike your flat.</div></div>
+    <div class="row"><div class="t"></div><div class="c"><span class="note">❌ <b>Santa Croce / Križ is dropped.</b> It's a Karst-ridge hamlet, not a coastal village, and there's no verifiable bus. If you want the Karst-over-Adriatic view, walk a stretch of the <b>Strada Napoleonica</b> — same panorama, off the same bus 42.</span></div></div>
+  </div>
+</div>
+
+<div class="day">
+  <header><span class="d">Thu 23 Jul</span><span class="w">A free day, then home</span></header>
+  <div class="body">
+    <div class="row"><div class="t">10:00</div><div class="c">Checkout. <b>Stash the bags</b> — with the host, or at Trieste Centrale.</div></div>
+    <div class="row"><div class="t">Day</div><div class="c"><b>The free day.</b> No work — that was decided. Miramare if you skipped it. One long Adriatic lunch. The sea.</div></div>
+    <div class="row"><div class="t">~17:30</div><div class="c"><b>To the airport.</b> <b>Taxi = €60 flat</b> (€15 each for 4). Or the train from Trieste Centrale, 28 min, ~€5pp — but you'd have to get the bags down the hill first.</div></div>
+    <div class="row"><div class="t">~18:20</div><div class="c">At TRS. Nearly <b>3 hours</b> before the flight — you can leave later if you'd rather.</div></div>
+    <div class="row"><div class="t">21:10</div><div class="c">✈️ <b>TRS → BER</b>, Ryanair FR6781, res <b>D7LS3U</b>. Lands Berlin <b>22:40</b>.</div></div>
+  </div>
+</div>
+
+<h2>The checklist</h2>
+<p style="color:var(--mute);margin:-4px 0 16px;font-size:15px">Sorted by what breaks if you don't do it. Ticks are saved in this browser.</p>
+
+<h3 style="color:var(--book)">Today — Mon 13 Jul</h3>
+<ul class="ck">
+  <li><input type="checkbox" id="c1"><div class="k"><b>Email Postojna Cave <span class="deadline">Trip-breaker</span></b>
+    <div class="m"><a href="mailto:info@postojnska-jama.eu">info@postojnska-jama.eu</a> · +386 5 700 01 00 — 4 large suitcases on 21 Jul: can you store them, <b>by what time must they be collected</b>, is there a fee, and can you confirm the free pickup from the train station? <b>They want 3 days' notice, and everything on Tuesday depends on the answer.</b></div></div></li>
+
+  <li><input type="checkbox" id="c2"><div class="k"><b>Pre-book the Friday taxi — a VAN <span class="deadline">Trip-breaker</span></b>
+    <div class="m">Bled Jezero station, <b>Fri 17 Jul, 17:05</b> → Stagne 22, Zasip. <b>5 people + luggage. A saloon will not fit you.</b><br>
+    Bled Taxi <b>+386 41 710 747</b> · BookTAXI 24/7 <b>+386 40 473 798</b> · or ask Stuart (Airbnb) — hosts in Bled usually have a driver.<br>
+    No Uber, no Bolt. It's a phone-a-cab town, and nothing waits at that little station.</div></div></li>
+
+  <li><input type="checkbox" id="c3"><div class="k"><b>Ryanair online check-in — BOTH flights <span class="deadline">~€220</span></b>
+    <div class="m">Bhargav's <b>T4LFJT</b> (20 Jul) and the group's <b>D7LS3U</b> (23 Jul). Airport check-in is ~€55/person. Free win.</div></div></li>
+
+  <li><input type="checkbox" id="c4"><div class="k"><b>Email both Bled hosts about the Julian Alps: Bled Card <span class="deadline soft">~€75 + perks</span></b>
+    <div class="m">Ask Stuart (Airbnb, Zasip) and PazlarJerman (Booking, central Bled): <i>"Are you a Bled Tourist Board partner accommodation? Can you issue us the Julian Alps: Bled Card?"</i><br>
+    It's free for guests of partner properties: <b>free Bled Bus on all lines</b> (otherwise €5/person/day), the <b>free Straža chairlift</b> (next to your Sunday apartment), and 10% off Bled Castle. It's digital and must be created in advance.</div></div></li>
+
+  <li><input type="checkbox" id="c5"><div class="k"><b>Call Vila Majda about a morning bag drop <span class="deadline">11-hour hole</span></b>
+    <div class="m"><b>+386 40 632 020.</b> You arrive Ljubljana 08:47 on the 20th; check-in is flagged 20:00–21:00. Can you drop bags in the morning? <b>If not</b>, plan on the left-luggage at Ljubljana railway station — right next to the bus station.</div></div></li>
+
+  <li><input type="checkbox" id="c6"><div class="k"><b>Ask PazlarJerman to hold bags from ~10:30 on Sun 19</b>
+    <div class="m">Zasip checkout is 10:00; their check-in is 13:00. A three-hour gap. Ground-floor place — they'll almost certainly say yes, but ask now.</div></div></li>
+
+  <li><input type="checkbox" id="c7"><div class="k"><b>Call Grotta Gigante — booking is compulsory</b>
+    <div class="m"><b>+39 040 327312</b> (10:00–12:30 / 13:30–16:30). Book a slot for <b>Wed 22</b>. <b>Ask two things:</b> the ~500 steps — how bad, really? And which <b>bus 42</b> to take from Trieste for your slot.</div></div></li>
+
+  <li><input type="checkbox" id="c8"><div class="k"><b>Decide Bhargav's route, then book the van <span class="deadline">By Sat 18</span></b>
+    <div class="m"><b>Recommended:</b> he comes to Ljubljana with everyone on the 07:30 bus, you get an hour together, then GoOpti <b>Ljubljana → Trieste Airport</b> (~€15–30) — cheaper than the Bled-direct van (~€50) <i>and</i> you keep the goodbye.<br>
+    Book at <a href="https://www.goopti.com">goopti.com</a>: latest drop-off <b>11:30</b>, <b>narrowest flexibility window</b> (pay the few € extra — a wide window lets their optimiser dump him on an 08:30 pickup). <b>Shared rides need 2 days' notice.</b></div></div></li>
+</ul>
+
+<h3>Before Sat 18 Jul — the GoOpti cutoff</h3>
+<ul class="ck">
+  <li><input type="checkbox" id="c9"><div class="k"><b>Book Postojna Cave + Predjama, Tue 21, ×4</b>
+    <div class="m"><a href="https://www.postojnska-jama.eu/en/tickets/">postojnska-jama.eu/en/tickets</a> — <b>€49.90pp combo online</b> (€58.90 at the door). ≈ €200. <b>Pick the slot only after Postojna answers about the bags</b> — 16:00 if they'll hold them late, 11:00 if they won't.</div></div></li>
+  <li><input type="checkbox" id="c10"><div class="k"><b>Book the Postojna → Trieste van, Tue 21, ×4 + luggage</b>
+    <div class="m">Door to door: <b>Postojna Cave Park → Via Donato Bramante 7, Trieste.</b> <b>There is no reliable bus on this route</b> — don't plan to turn up.</div></div></li>
+  <li><input type="checkbox" id="c11"><div class="k"><b>Book the Sunday taxi</b>
+    <div class="m">Sun 19, ~10:15, Zasip → Mlinska cesta 13. Same numbers as the Friday van.</div></div></li>
+</ul>
+
+<h3>Before you leave Berlin — Thu 16</h3>
+<ul class="ck">
+  <li><input type="checkbox" id="c12"><div class="k"><b>🎒 PACKING CHECK — cabin bags only coming home</b>
+    <div class="m">2× Priority + 2 cabin bags, 2× under-seat only, <b>no hold luggage</b>, for 4 people after 8 nights. Whatever goes down on the train has to come back in that.</div></div></li>
+  <li><input type="checkbox" id="c13"><div class="k"><b>💶 Draw ~€300 cash</b>
+    <div class="m">Pletna <b>€100 (cash only)</b> · Bled island entry ~€57 · Zasip tourist tax ~€31 (probably cash) · Bled→Ljubljana coach ~€40 (<b>cash to the driver</b>) · Predjama shuttle €8 (cash) · Bohinj bus + boat ~€45 · taxis. <b>Slovenia is more cash-dependent than Berlin trains you to expect.</b></div></div></li>
+  <li><input type="checkbox" id="c14"><div class="k"><b>Passports / ID for four countries</b>
+    <div class="m">All Schengen, so no border checks — but Ryanair will want ID.</div></div></li>
+  <li><input type="checkbox" id="c15"><div class="k"><b>Buy lunch in Munich on the 16th, for the Friday train</b>
+    <div class="m">EC 115 has <b>no restaurant car</b>. It's 5h14 to Slovenia.</div></div></li>
+</ul>
+
+<h3>On the ground</h3>
+<ul class="ck">
+  <li><input type="checkbox" id="c16"><div class="k"><b>Fri evening: get Saturday's REAL bus times at the AP Bled ticket window <span class="deadline">Amber 1</span></b>
+    <div class="m">Both directions: <b>to</b> Bohinj/Ukanc in the morning, <b>and back</b> from Ribčev Laz. You need one that reaches AP Bled by <b>16:55</b> — miss the 17:07 to Zasip and the next is <b>20:52</b>.</div></div></li>
+  <li><input type="checkbox" id="c17"><div class="k"><b>Mon: get Tuesday's Ljubljana → Postojna train time <span class="deadline">Amber 2</span></b>
+    <div class="m">You're next to the station all day on the 20th. Slovenian Railways' website blocks lookups — just walk in and ask.</div></div></li>
+  <li><input type="checkbox" id="c18"><div class="k"><b>Wed: re-check the Trieste → airport train <span class="deadline">Amber 3</span></b>
+    <div class="m">trenitalia.com — some evening trains have date exclusions. <b>Or just take the €60 flat-fare taxi and stop thinking about it.</b></div></div></li>
+</ul>
+
+<h2>Reference — open only if you need it</h2>
+
+<details>
+  <summary>💶 What it all costs</summary>
+  <p><b>Already booked and paid: €2,619.60</b> — all transport, all lodging.</p>
+  <div class="scroll"><table>
+    <tr><th>Still to pay</th><th></th><th>How</th></tr>
+    <tr><td>Postojna cave + Predjama (×4)</td><td>€200</td><td>Book online now</td></tr>
+    <tr><td>Vogel cable car (3 × €35 + 2 × €31)</td><td>€167</td><td>Card, at the lift</td></tr>
+    <tr><td>Pletna boat (5 × €20)</td><td>€100</td><td><b>CASH to the boatman</b></td></tr>
+    <tr><td>Bled Castle</td><td>~€89</td><td>Card / online</td></tr>
+    <tr><td>Miramare (×4)</td><td>€68</td><td>Card</td></tr>
+    <tr><td>Bled Island entry (×5)</td><td>~€57</td><td>Bring cash</td></tr>
+    <tr><td>Grotta Gigante (×4)</td><td>~€54</td><td>Card</td></tr>
+    <tr><td>Bohinj boat (×5, one way)</td><td>~€45</td><td>Card / cash</td></tr>
+    <tr><td>Bled→Ljubljana coach (×5)</td><td>~€40</td><td><b>CASH to the driver</b></td></tr>
+    <tr><td>Tourist tax, Zasip</td><td>~€31</td><td>Probably cash, to Stuart</td></tr>
+    <tr><td>Predjama shuttle (×4)</td><td>€8</td><td><b>CASH on board</b></td></tr>
+    <tr><td>Bled Bus</td><td>€0–75</td><td><b>€0 with the Julian Alps Card</b></td></tr>
+    <tr><td>Transfers (4 vans/taxis)</td><td>~€150–200</td><td>Book ahead</td></tr>
+    <tr><td>Food (~€30pp/day)</td><td>~€1,000</td><td></td></tr>
+    <tr><td><b>Projected total</b></td><td><b>≈ €4,700</b></td><td></td></tr>
+  </table></div>
+  <p class="maptip">⚠️ <b>Senior rates are inconsistent, and I don't know your parents' ages.</b> Vogel's cutoff is <b>60+</b> (so they qualify — a real saving). Bled Castle, Grotta Gigante and the Bohinj boat all need <b>65+</b>. Postojna, Vintgar and Miramare have <b>no senior rate at all</b>. If they're 60–64, the numbers above are ~€15 optimistic. Not worth losing sleep over.</p>
+</details>
+
+<details>
+  <summary>🚌 Bled Bus — full 2026 timetables (you only need four of these runs)</summary>
+  <p><b>Countryside Line (the Zasip one) — 4×/day, every day in July:</b></p>
+  <div class="scroll"><table>
+    <tr><th>Stop</th><th></th><th></th><th></th><th></th></tr>
+    <tr><td>Bled Central Parking</td><td>09:00</td><td>11:55</td><td>17:00</td><td>20:45</td></tr>
+    <tr><td><b>AP Bled</b> (bus station)</td><td>09:07</td><td>12:02</td><td><b>17:07</b></td><td>20:52</td></tr>
+    <tr><td><b>ZASIP</b></td><td>09:19</td><td>12:14</td><td><b>17:19</b></td><td>21:04</td></tr>
+    <tr><td>back to Bled Central Parking</td><td>09:25</td><td>12:20</td><td>17:25</td><td>21:10</td></tr>
+  </table></div>
+  <p class="maptip">Zasip → Bled is only <b>6 minutes</b>. It runs both ways.</p>
+  <p><b>Lake Line (the one with the CASTLE stop) — 6×/day:</b></p>
+  <div class="scroll"><table>
+    <tr><th>Stop</th><th></th><th></th><th></th><th></th><th></th><th></th></tr>
+    <tr><td>Bled Central Parking</td><td>09:30</td><td>10:45</td><td>15:05</td><td>16:30</td><td>18:30</td><td>20:00</td></tr>
+    <tr><td><b>Grad / Castle</b></td><td>09:34</td><td>10:49</td><td>15:09</td><td>16:34</td><td>18:34</td><td>20:04</td></tr>
+    <tr><td>AP Bled</td><td>09:45</td><td>11:00</td><td>15:20</td><td>16:45</td><td>18:45</td><td>20:15</td></tr>
+    <tr><td><b>Mlino</b> (the pletna jetty)</td><td>09:51</td><td>11:06</td><td><b>15:26</b></td><td>16:51</td><td>18:51</td><td>20:21</td></tr>
+    <tr><td>…then <b>Grad / Castle</b> again</td><td>10:06</td><td>11:21</td><td><b>15:41</b></td><td>17:06</td><td>19:06</td><td>—</td></tr>
+  </table></div>
+  <p class="maptip">⚠️ <b>Dead zone 11:28 → 15:05.</b> Nothing runs. Plan the siesta around it. €5/person/day, or free with the Julian Alps Card.</p>
+</details>
+
+<details>
+  <summary>🕳 Postojna — all the slot times</summary>
+  <p><b>Cave entry</b> (timed, book online): 09:00 · 10:00 · 10:30 · 11:00 · 12:00 · 13:00 · 14:00 · 15:00 · 15:30 · 16:00 · 17:00 · 18:00.<br>Arrive 30 min early. 90 minutes. <b>13°C down there — bring a jacket.</b></p>
+  <p><b>Predjama shuttle</b> (€2pp return, cash on board, 20 min, runs 27 Jun–30 Sep):<br>
+  <b>Cave → Castle:</b> 10:40 · 11:40 · 12:40 · 14:05 · 15:05 · 16:05 · 17:05 · 18:05<br>
+  <b>Castle → Cave:</b> 11:05 · 12:05 · 13:05 · 14:30 · 15:30 · 16:30 · 17:30 · 18:30</p>
+  <p class="maptip">Predjama is <b>9 km</b> from the cave. It is not walkable. The shuttle is the only cheap link.</p>
+</details>
+
+<details>
+  <summary>❌ What got dropped, and why</summary>
+  <p><b>Vintgar Gorge.</b> It's the reason the Zasip farmhouse was booked ("walkable from the door") — but the gorge has changed. The boardwalk is <b>one-way only</b>: 1.6 km in, and you <b>cannot walk back through it</b>. You return on a 4.1 km trail. <b>Total 5.7 km, ~3 hours, mandatory helmet, no shuttle from the exit</b> — and their own site asks for "moderate physical fitness… 2+ hours on uneven terrain with stairs." Tickets are timed-slot and <b>cannot be bought at the entrance.</b><br><br>
+  That's roughly double your parents' comfortable day, and it's the opposite shape of the cable-cars-and-boats trip they were promised. The booking is made and non-refundable; the justification isn't. <b>Let it go.</b></p>
+  <p><b>Santa Croce / Križ.</b> A Karst-ridge hamlet (historically leather-processing), not a coastal fishing village, and no verifiable bus. The <b>Strada Napoleonica</b> gives the same Karst-over-Adriatic view, off the bus 42 you're already taking.</p>
+</details>
+
+<details>
+  <summary>📞 Every number in one place</summary>
+  <table>
+    <tr><td><b>Postojna Cave</b></td><td>+386 5 700 01 00 · info@postojnska-jama.eu</td></tr>
+    <tr><td><b>Grotta Gigante</b></td><td>+39 040 327312 (10:00–12:30 / 13:30–16:30)</td></tr>
+    <tr><td><b>Vila Majda</b>, Ljubljana</td><td>+386 40 632 020</td></tr>
+    <tr><td><b>Bled Taxi</b></td><td>+386 41 710 747</td></tr>
+    <tr><td><b>BookTAXI Bled</b> (24/7)</td><td>+386 40 473 798</td></tr>
+    <tr><td>Arriva bus info (SI)</td><td>1991 (daily 08:00–16:00)</td></tr>
+  </table>
+</details>
+
+<p style="color:var(--mute);font-size:13px;margin-top:40px;border-top:1px solid var(--line);padding-top:16px">
+  Built 13 Jul 2026. Times in <b>black</b> come off tickets or official operator timetables — DB's live API, the Bled Bus 2026 PDF, Vogel's 2026 price list, Postojna, the Bohinj boat timetable.
+  Times in <span class="t-guess">amber</span> could not be verified (the operator's own site blocks lookups) and are marked with who confirms them, and when.
+  Every booking reference has been cross-checked against your confirmations. <b>Nothing here contradicts what you've already paid for.</b>
+</p>
+
+</div>
+
+<script>
+document.querySelectorAll('.ck input[type=checkbox]').forEach(function(b){
+  var k='sloven-'+b.id;
+  if(localStorage.getItem(k)==='1'){b.checked=true;b.closest('li').classList.add('done');}
+  b.addEventListener('change',function(){
+    localStorage.setItem(k,b.checked?'1':'0');
+    b.closest('li').classList.toggle('done',b.checked);
+  });
+});
+
+var TILE='https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+var ATTR='&copy; OpenStreetMap &copy; CARTO';
+function tiles(m){L.tileLayer(TILE,{attribution:ATTR,maxZoom:19}).addTo(m);}
+function bed(m,lat,lon,n,label,detail){
+  L.marker([lat,lon],{icon:L.divIcon({className:'',html:
+    '<div style="background:#1a1a1a;color:#fff;width:26px;height:26px;border-radius:50%;'+
+    'display:flex;align-items:center;justify-content:center;font:700 13px sans-serif;'+
+    'box-shadow:0 2px 6px rgba(0,0,0,.35);border:2px solid #fff">'+n+'</div>',
+    iconSize:[26,26],iconAnchor:[13,13]})}).addTo(m).bindPopup('<b>'+label+'</b><br>'+detail);
+}
+function dot(m,lat,lon,color,label,detail,size){
+  size=size||11;
+  L.marker([lat,lon],{icon:L.divIcon({className:'',html:
+    '<div style="background:'+color+';width:'+size+'px;height:'+size+'px;border-radius:50%;'+
+    'border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>',
+    iconSize:[size,size],iconAnchor:[size/2,size/2]})}).addTo(m)
+    .bindPopup('<b>'+label+'</b>'+(detail?'<br>'+detail:''));
+}
+function leg(m,pts,color,dash,label){
+  L.polyline(pts,{color:color,weight:4,opacity:.85,dashArray:dash}).addTo(m).bindPopup(label);
+}
+
+var BERLIN=[52.5249,13.3696], MUNICH=[48.1404,11.5587], SALZ=[47.8129,13.0456],
+    VILLACH=[46.6152,13.8367], JESENICE=[46.4363,14.0549], BLEDJ=[46.3683,14.0823],
+    ZASIP=[46.3905,14.1101], BLEDC=[46.3579,14.1008], LJU=[46.0578,14.5095],
+    POSTOJNA=[45.7797,14.2053], TRIESTE=[45.6455,13.7735], TRS=[45.827,13.472],
+    UKANC=[46.2793,13.8300], RIBCEV=[46.2763,13.8532], LESCE=[46.3604,14.1580],
+    ISLAND=[46.3623,14.0900], CASTLE=[46.3697,14.1005], MLINO=[46.3576,14.0958],
+    APBLED=[46.3711,14.1066], CENTRALE=[45.6574,13.7721], GROTTA=[45.7099,13.7645],
+    MIRAMARE=[45.7043,13.7104], UNITA=[45.6495,13.7686];
+
+/* ---- MAP 1 ---- */
+var m=L.map('map',{scrollWheelZoom:false}).setView([48.6,13.4],6);
+tiles(m);
+leg(m,[BERLIN,MUNICH],'#8b5cf6',null,'🚆 <b>ICE 1005</b><br>Berlin → Munich · <b>4h10</b><br>08:36 → 12:46, Thu 16');
+leg(m,[MUNICH,SALZ,VILLACH,JESENICE],'#ec4899',null,'🚆 <b>EC 115 "Mimara"</b><br>Munich → Jesenice · <b>5h14</b><br>10:16 → 15:30, Fri 17<br><i>via Salzburg + the Tauern Railway</i><br>🍱 no restaurant car');
+leg(m,[JESENICE,BLEDJ],'#0ea5e9',null,'🚆 <b>R 601</b><br>Jesenice → Bled Jezero · <b>14 min</b><br>16:51 → 17:05');
+leg(m,[APBLED,LJU],'#f59e0b','8,6','🚌 <b>Arriva coach</b><br>Bled → Ljubljana · <b>1h17</b><br>07:30 → 08:47, Mon 20<br><i>cash to the driver</i>');
+leg(m,[LJU,POSTOJNA],'#0ea5e9','8,6','🚆 <b>Train</b><br>Ljubljana → Postojna · <b>~1h15</b><br>⚠️ time unverified — ask at the station');
+leg(m,[POSTOJNA,TRIESTE],'#dc2626','2,7','🚐 <b>Private van</b><br>Postojna → Trieste · <b>~50 min</b><br>🚨 <b>NO scheduled bus exists on this route</b>');
+leg(m,[TRIESTE,TRS],'#22c55e','2,7','🚕 Trieste → the airport<br><b>€60 flat taxi</b>, or a 28-min train');
+leg(m,[TRS,BERLIN],'#22c55e','1,9','✈️ <b>Ryanair FR6781</b><br>Trieste → Berlin · <b>1h30</b><br>21:10 → 22:40, Thu 23<br><i>Bhargav flies the same route on the 20th</i>');
+bed(m,MUNICH[0],MUNICH[1],1,'Munich — 1 night','Leonardo Olympiapark · Thu 16');
+bed(m,ZASIP[0],ZASIP[1],2,'Zasip — 2 nights','"Alpine Retreat" farmhouse · Fri 17, Sat 18<br><i>a hill village 4 km above the lake</i>');
+bed(m,BLEDC[0],BLEDC[1],4,'Central Bled — 1 night','PazlarJerman, Mlinska cesta 13 · Sun 19');
+bed(m,LJU[0],LJU[1],5,'Ljubljana — 1 night','Vila Majda, Bežigrad · Mon 20');
+bed(m,TRIESTE[0],TRIESTE[1],6,'Trieste — 2 nights','La Perla di San Giusto · Tue 21, Wed 22<br><i>up on the castle hill</i>');
+dot(m,POSTOJNA[0],POSTOJNA[1],'#dc2626','Postojna Cave','Tue 21 — a DAY STOP, not a night.<br>Cave + Predjama, with all the luggage.',13);
+dot(m,JESENICE[0],JESENICE[1],'#9ca3af','Jesenice','1h21 wait. Former steel town.<br>The station has a bar.');
+dot(m,BERLIN[0],BERLIN[1],'#1a1a1a','Berlin','Start + finish',13);
+
+/* ---- MAP 2 ---- */
+var m2=L.map('map2',{scrollWheelZoom:false}).setView([46.33,13.99],11);
+tiles(m2);
+leg(m2,[APBLED,[46.30,13.95],UKANC],'#f59e0b','8,6','🚌 <b>Sat morning</b><br>AP Bled → Ukanc · ~50 min<br>⚠️ time unverified — ask at the ticket window');
+leg(m2,[UKANC,RIBCEV],'#0ea5e9',null,'⛴ <b>Panoramic boat</b> · 13:40<br>Ukanc (west) → Ribčev Laz (east)<br><b>30 min across Lake Bohinj</b>');
+leg(m2,[RIBCEV,[46.30,13.95],APBLED],'#f59e0b','8,6','🚌 <b>Sat afternoon</b> · ~15:45<br>Ribčev Laz → AP Bled<br>🚨 <b>must reach AP Bled by 16:55</b>');
+leg(m2,[MLINO,ISLAND],'#0ea5e9',null,'🛶 <b>Pletna</b> · Sun 11:15<br>Mlino → Bled Island<br>€20pp <b>CASH</b> · 40 min on the island · 99 steps');
+leg(m2,[MLINO,APBLED,CASTLE],'#16a34a',null,'🚌 <b>Lake Line</b> · Mlino 15:26 → Castle 15:41<br>★ <b>The parents do NOT walk up the hill</b>');
+leg(m2,[BLEDJ,ZASIP],'#dc2626','4,5','🚕 <b>Fri 17:10 — the pre-booked VAN</b><br>Bled Jezero → Zasip · 4.2 km / 9 min');
+bed(m2,ZASIP[0],ZASIP[1],2,'Zasip — Fri + Sat','"Alpine Retreat", Stagne 22.<br><b>A hill village 4 km from the lake.</b><br>Downhill to the lake — <b>uphill coming home.</b><br>Don\'t plan to walk it.');
+bed(m2,BLEDC[0],BLEDC[1],4,'Central Bled — Sun','PazlarJerman, Mlinska cesta 13.<br>900 m flat walk to the Mlino jetty.');
+dot(m2,BLEDJ[0],BLEDJ[1],'#16a34a','✅ Bled Jezero station','<b>THIS IS YOURS.</b> The little lakeside halt on the Bohinj line.<br>You arrive Fri 17:05. <b>No taxis wait here — pre-book.</b>',14);
+dot(m2,LESCE[0],LESCE[1],'#dc2626','❌ Lesce-Bled station','<b>NOT THIS ONE.</b><br>The main-line station most trains use.<br><b>4 km from Bled, not on the lake at all.</b><br>This is the trap that confuses everyone.',14);
+dot(m2,APBLED[0],APBLED[1],'#1a1a1a','AP Bled','= <b>the Bled bus station.</b><br>Every bus in this plan starts or ends here.',12);
+dot(m2,ISLAND[0],ISLAND[1],'#0ea5e9','Bled Island','The church. <b>99 steps up.</b>');
+dot(m2,CASTLE[0],CASTLE[1],'#16a34a','Bled Castle','On the cliff. <b>There is a BUS STOP up here</b> — Lake Line, the "Grad" stop.',12);
+dot(m2,MLINO[0],MLINO[1],'#0ea5e9','Mlino jetty','Where the pletna boats leave.<br>900 m flat from your Sunday apartment.');
+dot(m2,UKANC[0],UKANC[1],'#f59e0b','Ukanc / Zlatorog','<b>WEST end of Lake Bohinj.</b><br>Get off the bus HERE — the Vogel cable car is here.',13);
+dot(m2,RIBCEV[0],RIBCEV[1],'#f59e0b','Ribčev Laz','<b>EAST end of Lake Bohinj.</b><br>The church, the stone bridge.<br>The boat brings you here; the bus home leaves from here.',13);
+dot(m2,46.2590,13.8400,'#7c3aed','Vogel — the top','<b>1,535 m.</b> Cable car up from Ukanc.<br>€35 · €31 for over-60s.<br>Terrace, Triglav, meadows. <b>You can just sit.</b>',13);
+L.marker([46.325,13.875],{icon:L.divIcon({className:'',html:
+  '<div style="color:#555;font:700 11px sans-serif;white-space:nowrap;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff">'+
+  'Lake Bohinj — a DIFFERENT lake, 26 km away</div>',iconSize:[0,0]})}).addTo(m2);
+
+/* ---- MAP 3 ---- */
+var m3=L.map('map3',{scrollWheelZoom:false}).setView([45.72,13.66],11);
+tiles(m3);
+leg(m3,[CENTRALE,GROTTA],'#f59e0b','8,6','🚌 <b>Bus 42</b> · ~35 min<br>from Viale Miramare, next to Centrale<br>⚠️ NOT the Opicina tram (suspended — maybe back 15 Jul)');
+leg(m3,[CENTRALE,MIRAMARE],'#0ea5e9','8,6','🚌 <b>Bus 6 / 36</b> along the Barcola seafront<br>→ "Bivio di Miramare", then a 750 m walk');
+leg(m3,[TRIESTE,TRS],'#22c55e','2,7','🚕 <b>€60 flat taxi</b> · ~40 min<br>or the train — 28 min, ~€5pp');
+bed(m3,TRIESTE[0],TRIESTE[1],6,'La Perla di San Giusto','Via Donato Bramante 7.<br><b>Up on the castle hill — the steep bit.</b><br>With suitcases: take a taxi, don\'t walk.');
+dot(m3,CENTRALE[0],CENTRALE[1],'#1a1a1a','Trieste Centrale','The station. Bus 42 and bus 6/36 both start near here.',12);
+dot(m3,UNITA[0],UNITA[1],'#0ea5e9','Piazza Unità','The biggest sea-facing square in Europe.<br>Flat — unlike your flat.');
+dot(m3,GROTTA[0],GROTTA[1],'#dc2626','Grotta Gigante','Up on the Karst plateau.<br><b>Booking COMPULSORY: +39 040 327312</b><br>⚠️ ~500 steps on the way down.',13);
+dot(m3,MIRAMARE[0],MIRAMARE[1],'#7c3aed','Miramare Castle','A white Habsburg fantasy on the sea.<br>€17 · <b>the park is free</b>.',13);
+dot(m3,TRS[0],TRS[1],'#22c55e','Trieste Airport (TRS)','33 km northwest — <b>not in Trieste.</b><br>Both flights leave from here.',13);
+</script>
+</body>
+</html>
