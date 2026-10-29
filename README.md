@@ -1,3 +1,6 @@
+> [!IMPORTANT]
+>This is not maintained anymore. I'm continuing this idea with [inline-pi](https://github.com/bawakul/inline-pi), since I don't use Claude Code anymore. I am planning to build that in one public. Please read [this](https://bawakulkarni.substack.com/p/breaking-out-of-chat?r=6lq4l&utm_campaign=post-expanded-share&utm_medium=web) for more context. Thanks! -- Bawa
+
 # Inline Claude
 
 Chat with Claude inline in your Obsidian notes — type `;;` and get responses as native callout blocks.
